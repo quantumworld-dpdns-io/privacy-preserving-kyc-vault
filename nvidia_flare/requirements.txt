@@ -1,0 +1,4 @@
+nvidia-flare>=4.5
+torch>=2.5
+numpy>=2.0
+scikit-learn>=1.6

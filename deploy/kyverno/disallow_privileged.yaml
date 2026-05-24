@@ -1,0 +1,190 @@
+# Kyverno ClusterPolicy: Disallow Privileged Containers
+# Prevents creation of privileged containers and escalations
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow Privileged Containers
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Disallows running containers in privileged mode or with allowPrivilegeEscalation.
+      Also restricts dangerous capabilities and requires non-root user.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: privileged-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Privileged mode is not allowed.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  privileged: false
+            initContainers:
+              - securityContext:
+                  privileged: false
+            ephemeralContainers:
+              - securityContext:
+                  privileged: false
+
+    - name: privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Privilege escalation is not allowed.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  allowPrivilegeEscalation: false
+            initContainers:
+              - securityContext:
+                  allowPrivilegeEscalation: false
+
+    - name: dangerous-capabilities
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Dropping all capabilities is required. The following are forbidden: SYS_ADMIN, NET_ADMIN, SYS_PTRACE, DAC_OVERRIDE, SYS_RAWIO, SYS_MODULE, NET_RAW, IPC_LOCK, SYS_TIME, SYS_BOOT.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  capabilities:
+                    drop:
+                      - ALL
+                    add:
+                      - NET_BIND_SERVICE
+            initContainers:
+              - securityContext:
+                  capabilities:
+                    drop:
+                      - ALL
+
+    - name: run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Containers must not run as root (runAsNonRoot: true).
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsNonRoot: true
+            initContainers:
+              - securityContext:
+                  runAsNonRoot: true
+
+    - name: run-as-user-id
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: runAsUser must be greater than 10000 and less than 65535.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsUser: "10000-65535"
+            initContainers:
+              - securityContext:
+                  runAsUser: "10000-65535"
+
+    - name: read-only-root-filesystem
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Read-only root filesystem is required.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+            initContainers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+
+    - name: seccomp-default
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Seccomp profile must be RuntimeDefault.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault
+            initContainers:
+              - securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault
+
+    - name: selinux-config
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: SELinux type must be container_t.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  seLinuxOptions:
+                    type: container_t
+
+    - name: apparmor-annotation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: AppArmor annotation container.apparmor.security.beta.kubernetes.io must be runtime/default.
+        pattern:
+          metadata:
+            annotations:
+              container.apparmor.security.beta.kubernetes.io/*: "runtime/default"
+
+    - name: host-namespaces
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Using host namespaces (hostPID, hostIPC, hostNetwork) is not allowed.
+        pattern:
+          spec:
+            hostPID: false
+            hostIPC: false
+            hostNetwork: false

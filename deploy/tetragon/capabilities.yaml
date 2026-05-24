@@ -1,0 +1,304 @@
+# Tetragon TracingPolicy: Container Capability Enforcement
+# Monitors and blocks dangerous Linux capabilities at eBPF level
+
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "kyc-capability-enforcement"
+  namespace: kyc-vault
+spec:
+  kprobes:
+    # ============================================================
+    # Capset syscall - granting new capabilities
+    # ============================================================
+    - call: "sys_capset"
+      syscall: true
+      args:
+        - index: 0
+          type: "cap_user_header_t"
+          name: "header"
+        - index: 1
+          type: "cap_user_data_t"
+          name: "data"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "In"
+              values:
+                - "CAP_SYS_ADMIN"
+                - "CAP_NET_ADMIN"
+                - "CAP_SYS_RAWIO"
+                - "CAP_SYS_PTRACE"
+                - "CAP_DAC_OVERRIDE"
+                - "CAP_DAC_READ_SEARCH"
+                - "CAP_SYS_MODULE"
+                - "CAP_SYS_BOOT"
+                - "CAP_SYS_TIME"
+                - "CAP_LINUX_IMMUTABLE"
+                - "CAP_NET_RAW"
+                - "CAP_KILL"
+          matchActions:
+            - action: "SigKill"
+            - action: "Log"
+
+    # ============================================================
+    # Setuid/setgid syscalls - privilege escalation attempts
+    # ============================================================
+    - call: "sys_setuid"
+      syscall: true
+      args:
+        - index: 0
+          type: "uid_t"
+          name: "uid"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "0"
+          matchActions:
+            - action: "SigKill"
+
+    - call: "sys_setgid"
+      syscall: true
+      args:
+        - index: 0
+          type: "gid_t"
+          name: "gid"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "0"
+          matchActions:
+            - action: "SigKill"
+
+    - call: "sys_setresuid"
+      syscall: true
+      args:
+        - index: 0
+          type: "uid_t"
+          name: "ruid"
+        - index: 1
+          type: "uid_t"
+          name: "euid"
+        - index: 2
+          type: "uid_t"
+          name: "suid"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "0"
+          matchActions:
+            - action: "SigKill"
+
+    # ============================================================
+    # Ptrace syscall - process introspection
+    # ============================================================
+    - call: "sys_ptrace"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "request"
+        - index: 1
+          type: "pid_t"
+          name: "pid"
+        - index: 2
+          type: "uintptr_t"
+          name: "addr"
+        - index: 3
+          type: "uintptr_t"
+          name: "data"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "PTRACE_TRACEME"
+                - "PTRACE_ATTACH"
+                - "PTRACE_SEIZE"
+                - "PTRACE_PEEKTEXT"
+                - "PTRACE_PEEKDATA"
+                - "PTRACE_POKETEXT"
+                - "PTRACE_POKEDATA"
+                - "PTRACE_GETEVENTMSG"
+          matchActions:
+            - action: "SigKill"
+
+    # ============================================================
+    # Mknod syscall - creating device nodes
+    # ============================================================
+    - call: "sys_mknod"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"
+          name: "pathname"
+        - index: 1
+          type: "mode_t"
+          name: "mode"
+        - index: 2
+          type: "dev_t"
+          name: "dev"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "In"
+              values:
+                - "S_IFBLK"
+                - "S_IFCHR"
+          matchActions:
+            - action: "SigKill"
+
+    # ============================================================
+    # Mount syscall - filesystem mounting
+    # ============================================================
+    - call: "sys_mount"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"
+          name: "source"
+        - index: 1
+          type: "string"
+          name: "target"
+        - index: 2
+          type: "string"
+          name: "filesystemtype"
+        - index: 3
+          type: "uintptr_t"
+          name: "mountflags"
+      selectors:
+        - matchArgs:
+            - index: 2
+              operator: "In"
+              values:
+                - "proc"
+                - "sysfs"
+                - "devtmpfs"
+                - "cgroup"
+                - "cgroup2"
+                - "debugfs"
+                - "bpf"
+                - "tracefs"
+                - "securityfs"
+          matchActions:
+            - action: "SigKill"
+
+    # ============================================================
+    # Init_module syscall - kernel module loading
+    # ============================================================
+    - call: "sys_init_module"
+      syscall: true
+      args:
+        - index: 0
+          type: "char[]"
+          name: "umod"
+          sizeArgIndex: 1
+        - index: 1
+          type: "uintptr_t"
+          name: "len"
+        - index: 2
+          type: "string"
+          name: "param_values"
+      selectors:
+        - matchActions:
+            - action: "SigKill"
+            - action: "Log"
+
+    - call: "sys_finit_module"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "fd"
+        - index: 1
+          type: "string"
+          name: "param_values"
+        - index: 2
+          type: "int"
+          name: "flags"
+      selectors:
+        - matchActions:
+            - action: "SigKill"
+            - action: "Log"
+
+    # ============================================================
+    # Delete_module syscall
+    # ============================================================
+    - call: "sys_delete_module"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"
+          name: "name_user"
+        - index: 1
+          type: "int"
+          name: "flags"
+      selectors:
+        - matchActions:
+            - action: "SigKill"
+            - action: "Log"
+
+    # ============================================================
+    # Bpf syscall - eBPF program loading (defense in depth)
+    # ============================================================
+    - call: "sys_bpf"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "cmd"
+        - index: 1
+          type: "uintptr_t"
+          name: "attr"
+        - index: 2
+          type: "int"
+          name: "size"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "BPF_PROG_LOAD"
+                - "BPF_MAP_CREATE"
+          matchActions:
+            - action: "SigKill"
+            - action: "Log"
+
+  # ============================================================
+  # Tracepoints for container runtime events
+  # ============================================================
+  tracepoints:
+    - subsystem: "container"
+      event: "container_start"
+      args:
+        - index: 0
+          type: "string"
+          name: "container_id"
+        - index: 1
+          type: "string"
+          name: "image"
+
+    - subsystem: "container"
+      event: "container_stop"
+      args:
+        - index: 0
+          type: "string"
+          name: "container_id"
+
+  # ============================================================
+  # Monitor all pods in the namespace
+  # ============================================================
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: "kyc-vault"
+
+  spec:
+    rateLimit:
+      eventsPerSecond: 500
+      burstSize: 100

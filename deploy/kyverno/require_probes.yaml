@@ -1,0 +1,135 @@
+# Kyverno ClusterPolicy: Require Liveness and Readiness Probes
+# Ensures all pods have proper health check probes configured
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-probes
+  annotations:
+    policies.kyverno.io/title: Require Liveness and Readiness Probes
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires liveness and readiness probes on all containers to ensure
+      Kubernetes can properly manage pod health and traffic routing.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-liveness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Containers must have a livenessProbe configured.
+        pattern:
+          spec:
+            containers:
+              - livenessProbe:
+                  httpGet:
+                    scheme: HTTPS | HTTP
+                  initialDelaySeconds: ">0"
+                  periodSeconds: ">0"
+                  timeoutSeconds: ">0"
+                  failureThreshold: ">0"
+
+    - name: require-readiness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Containers must have a readinessProbe configured.
+        pattern:
+          spec:
+            containers:
+              - readinessProbe:
+                  httpGet:
+                    scheme: HTTPS | HTTP
+                  initialDelaySeconds: ">0"
+                  periodSeconds: ">0"
+                  timeoutSeconds: ">0"
+                  failureThreshold: ">0"
+
+    - name: require-startup-probe-high-risk
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: High-risk pods must have a startupProbe configured.
+        pattern:
+          spec:
+            containers:
+              - startupProbe:
+                  httpGet:
+                    scheme: HTTPS | HTTP
+                  initialDelaySeconds: ">0"
+                  periodSeconds: ">0"
+                  timeoutSeconds: ">0"
+                  failureThreshold: ">0"
+
+    - name: probe-timeout-constraints
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Probe timeouts must not exceed 60 seconds and periods must be at least 5 seconds.
+        pattern:
+          spec:
+            containers:
+              - livenessProbe:
+                  timeoutSeconds: "<60"
+                  periodSeconds: ">=5"
+                readinessProbe:
+                  timeoutSeconds: "<60"
+                  periodSeconds: ">=5"
+
+    - name: probe-http-paths
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: HTTP probes must use reasonable paths.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].livenessProbe.httpGet.path }}"
+                operator: AnyIn
+                value:
+                  - "/"
+                  - ""
+              - key: "{{ request.object.spec.containers[].readinessProbe.httpGet.path }}"
+                operator: AnyIn
+                value:
+                  - "/"
+                  - ""
+
+    - name: probe-port-constraints
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: Probe ports must match container ports for KYC Vault pods.
+        pattern:
+          spec:
+            containers:
+              - ports:
+                  - containerPort: "{{ request.object.spec.containers[].livenessProbe.httpGet.port }}"

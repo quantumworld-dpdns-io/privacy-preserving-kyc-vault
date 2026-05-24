@@ -1,0 +1,108 @@
+# Kyverno ClusterPolicy: Disallow Image Tag 'latest'
+# Requires explicit versioned image tags on all containers
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Tag
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Require an explicit image tag that is not 'latest'. Users must specify
+      a versioned tag for all container images.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-image-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: An image tag is required and must not be 'latest'.
+        pattern:
+          spec:
+            containers:
+              - image: "*:*"
+                image: "!*:latest"
+            initContainers:
+              - image: "*:*"
+                image: "!*:latest"
+            ephemeralContainers:
+              - image: "*:*"
+                image: "!*:latest"
+
+    - name: validate-tag-format
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Image tag must be a semantic version or commit SHA.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].image }}"
+                operator: AnyPattern
+                value:
+                  - "*:"
+                  - "*/latest@*"
+                  - "*:latest*"
+
+    - name: block-mutable-tags
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: Production pods must use immutable image digests, not tags.
+        pattern:
+          spec:
+            containers:
+              - image: "*@sha256:*"
+            initContainers:
+              - image: "*@sha256:*"
+
+    - name: check-image-registry
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Image must come from an approved registry.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].image }}"
+                operator: AnyPattern
+                value:
+                  - "docker.io/*"
+                  - "index.docker.io/*"
+                  - "gcr.io/*"
+                  - "quay.io/*"
+
+    - name: audit-latest-images
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Image tag 'latest' is not permitted. Use a specific version
+          (e.g., v1.2.3, sha256:abc123...).
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"

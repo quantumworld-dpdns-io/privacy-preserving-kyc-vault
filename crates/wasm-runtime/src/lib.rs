@@ -1,10 +1,14 @@
-pub fn hello() -> &'static str { "hello from wasm-runtime" }
+pub mod host_functions;
+pub mod instance_pool;
+pub mod modules;
+pub mod sandbox;
+pub mod wasi;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn it_works() {
-        assert_eq!(hello(), "hello from wasm-runtime");
-    }
-}
+pub use host_functions::HostFunctionRegistry;
+pub use instance_pool::InstancePool;
+pub use modules::ModuleCache;
+pub use runtime::WasmRuntime;
+pub use sandbox::SandboxConfig;
+pub use wasi::WasiEnvironment;
+
+mod runtime;

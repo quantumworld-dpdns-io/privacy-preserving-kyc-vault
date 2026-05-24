@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kyc-vault-config
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: config
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  METRICS_ENABLED: "true"
+  METRICS_PORT: "9090"
+  TRACING_ENABLED: "true"
+  TRACING_ENDPOINT: "otel-collector.observability:4317"
+  DB_HOST: "kyc-vault-db.kyc-vault.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "kycdb"
+  DB_SSL_MODE: "require"
+  REDIS_HOST: "kyc-vault-redis.kyc-vault.svc.cluster.local"
+  REDIS_PORT: "6379"
+  KAFKA_BROKERS: "kyc-vault-kafka.kyc-vault.svc.cluster.local:9092"
+  KAFKA_SCHEMA_REGISTRY: "http://kyc-vault-schema-registry.kyc-vault:8081"
+  API_RATE_LIMIT: "1000"
+  API_RATE_LIMIT_WINDOW: "60"
+  API_MAX_BODY_SIZE: "10485760"
+  CORS_ALLOWED_ORIGINS: "https://kyc-vault.com"
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,PATCH"
+  WASM_MAX_MEMORY: "10485760"
+  WASM_MAX_FUEL: "1000000"
+  WASM_MAX_INSTANCES: "100"
+  WASM_INSTANCE_POOL_SIZE: "50"
+  WASM_CACHE_CAPACITY: "50"
+  WASM_IDLE_TIMEOUT: "300"
+  DID_CACHE_TTL: "300"
+  DID_RESOLVER_TIMEOUT: "10"
+  CREDENTIAL_DEFAULT_TTL: "7776000"
+  ZKP_PROOF_GENERATION_TIMEOUT: "30"
+  COMPLIANCE_CHECK_CACHE_TTL: "300"
+  WORKFLOW_EXECUTION_TIMEOUT: "300"
+  WORKFLOW_MAX_RETRIES: "3"
+  VAULT_ADDR: "https://vault.kyc-vault.internal:8200"
+  VAULT_ENGINE_PATH: "kyc-vault"
+  VAULT_NAMESPACE: "kyc-vault"
+  OPA_ENABLED: "true"
+  OPA_ENDPOINT: "http://opa.kyc-vault.svc.cluster.local:8181"
+  TEE_PROVIDER: "sgx"
+  TEE_ATTESTATION_ENDPOINT: "https://attestation.kyc-vault.internal"
+  PQC_ENABLED: "true"
+  PQC_KEM: "ml-kem-768"
+  PQC_SIGNATURE: "ml-dsa-65"
+  HYBRID_ENCRYPTION: "true"
+  WEBHOOK_RETRY_COUNT: "5"
+  WEBHOOK_RETRY_DELAY: "5"
+  WEBHOOK_MAX_PAYLOAD: "1048576"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kyc-vault-wasm-config
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: wasm
+data:
+  modules.yaml: |
+    modules:
+      - name: "kyc-basic-verification"
+        path: "/wasm/modules/basic-verification.wasm"
+        hash: "sha256:abc123..."
+        capabilities: ["random", "clock", "stdout"]
+        max_memory: 5242880
+        max_fuel: 500000
+        allow_wasi: false
+      - name: "kyc-advanced-verification"
+        path: "/wasm/modules/advanced-verification.wasm"
+        hash: "sha256:def456..."
+        capabilities: ["random", "clock", "crypto", "kv", "stdout"]
+        max_memory: 10485760
+        max_fuel: 1000000
+        allow_wasi: true
+      - name: "kyc-document-validation"
+        path: "/wasm/modules/document-validation.wasm"
+        hash: "sha256:ghi789..."
+        capabilities: ["random", "clock", "stdout", "stderr"]
+        max_memory: 20971520
+        max_fuel: 2000000
+        allow_wasi: true
+      - name: "kyc-compliance-check"
+        path: "/wasm/modules/compliance-check.wasm"
+        hash: "sha256:jkl012..."
+        capabilities: ["random", "clock", "crypto", "stdout"]
+        max_memory: 10485760
+        max_fuel: 1000000
+        allow_wasi: false
