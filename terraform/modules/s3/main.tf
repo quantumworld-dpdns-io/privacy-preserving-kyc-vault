@@ -1,139 +1,101 @@
-locals {
-  bucket_count = length(var.bucket_configs)
-}
-
-resource "aws_kms_key" "s3" {
-  count = var.create_kms_key ? 1 : 0
-
-  description             = "KMS key for S3 bucket encryption"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-
-  tags = {
-    Name = "${var.name_prefix}-s3-kms"
+# S3 Module
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
   }
 }
 
-resource "aws_s3_bucket" "main" {
-  for_each = var.bucket_configs
-
-  bucket = "${var.name_prefix}-${each.key}"
-
-  tags = merge({
-    Name = "${var.name_prefix}-${each.key}"
-  }, lookup(each.value, "tags", {}))
+variable "bucket_name" {
+  description = "Name of the S3 bucket"
+  type        = string
 }
 
-resource "aws_s3_bucket_versioning" "main" {
-  for_each = var.bucket_configs
+variable "acl" {
+  description = "Canned ACL for the bucket"
+  type        = string
+  default     = "private"
+}
 
-  bucket = aws_s3_bucket.main[each.key].id
+variable "versioning_enabled" {
+  description = "Whether versioning is enabled"
+  type        = bool
+  default     = true
+}
 
-  versioning_configuration {
-    status = lookup(each.value, "versioning", true) ? "Enabled" : "Suspended"
+variable "server_side_encryption_configuration" {
+  description = "Server-side encryption configuration"
+  type        = any
+  default     = null
+}
+
+variable "lifecycle_rules" {
+  description = "Lifecycle rules"
+  type        = any
+  default     = []
+}
+
+variable "tags" {
+  description = "Tags to apply to the bucket"
+  type        = map(string)
+  default     = {}
+}
+
+variable "force_destroy" {
+  description = "Whether to force destroy the bucket"
+  type        = bool
+  default     = false
+}
+
+# S3 Bucket
+resource "aws_s3_bucket" "this" {
+  bucket = var.bucket_name
+  acl    = var.acl
+
+  versioning {
+    enabled = var.versioning_enabled
   }
+
+  server_side_encryption_configuration = var.server_side_encryption_configuration
+
+  lifecycle_rule = var.lifecycle_rules
+
+  tags = var.tags
+
+  force_destroy = var.force_destroy
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
-  for_each = var.bucket_configs
-
-  bucket = aws_s3_bucket.main[each.key].id
+# Default encryption if not provided
+resource "aws_s3_bucket_server_side_encryption_configuration" "default" {
+  count = var.server_side_encryption_configuration == null ? 1 : 0
+  bucket = aws_s3_bucket.this.id
 
   rule {
     apply_server_side_encryption_by_default {
-      kms_master_key_id = var.create_kms_key ? aws_kms_key.s3[0].arn : lookup(each.value, "kms_key_arn", null)
-      sse_algorithm     = "aws:kms"
-    }
-    bucket_key_enabled = true
-  }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "main" {
-  for_each = {
-    for k, v in var.bucket_configs : k => v if lookup(v, "lifecycle_rules", null) != null
-  }
-
-  bucket = aws_s3_bucket.main[each.key].id
-
-  dynamic "rule" {
-    for_each = each.value.lifecycle_rules
-    content {
-      id     = rule.value.id
-      status = rule.value.enabled ? "Enabled" : "Disabled"
-
-      dynamic "transition" {
-        for_each = lookup(rule.value, "transitions", [])
-        content {
-          days          = transition.value.days
-          storage_class = transition.value.storage_class
-        }
-      }
-
-      dynamic "expiration" {
-        for_each = lookup(rule.value, "expiration", null) != null ? [rule.value.expiration] : []
-        content {
-          days                         = lookup(expiration.value, "days", null)
-          expired_object_delete_marker = lookup(expiration.value, "expired_object_delete_marker", null)
-        }
-      }
-
-      dynamic "noncurrent_version_expiration" {
-        for_each = lookup(rule.value, "noncurrent_version_expiration", null) != null ? [rule.value.noncurrent_version_expiration] : []
-        content {
-          noncurrent_days = noncurrent_version_expiration.value.days
-        }
-      }
+      sse_algorithm = "AES256"
     }
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "main" {
-  for_each = var.bucket_configs
-
-  bucket = aws_s3_bucket.main[each.key].id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+output "bucket_id" {
+  description = "The ID of the S3 bucket"
+  value       = aws_s3_bucket.this.id
 }
 
-resource "aws_s3_bucket_policy" "enforce_tls" {
-  for_each = {
-    for k, v in var.bucket_configs : k => v if lookup(v, "enforce_tls", true)
-  }
-
-  bucket = aws_s3_bucket.main[each.key].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "EnforceTLS"
-        Effect = "Deny"
-        Principal = "*"
-        Action = "s3:*"
-        Resource = [
-          aws_s3_bucket.main[each.key].arn,
-          "${aws_s3_bucket.main[each.key].arn}/*"
-        ]
-        Condition = {
-          Bool = {
-            "aws:SecureTransport" = "false"
-          }
-        }
-      }
-    ]
-  })
+output "bucket_arn" {
+  description = "The ARN of the S3 bucket"
+  value       = aws_s3_bucket.this.arn
 }
 
-resource "aws_s3_bucket_logging" "main" {
-  for_each = {
-    for k, v in var.bucket_configs : k => v if lookup(v, "access_log_bucket", null) != null
-  }
+output "bucket_domain_name" {
+  description = "The domain name of the S3 bucket"
+  value       = aws_s3_bucket.this.bucket_domain_name
+}
 
-  bucket = aws_s3_bucket.main[each.key].id
-
-  target_bucket = each.value.access_log_bucket
-  target_prefix = "logs/${var.name_prefix}-${each.key}/"
+output "bucket_regional_domain_name" {
+  description = "The regional domain name of the S3 bucket"
+  value       = aws_s3_bucket.this.bucket_regional_domain_name
 }
