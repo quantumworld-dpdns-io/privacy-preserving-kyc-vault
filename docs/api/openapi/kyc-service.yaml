@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: KYC Service API
+  description: API for managing identity verification workflows.
+  version: 1.0.0
+servers:
+  - url: https://api.kyc-vault.com/v1/kyc
+paths:
+  /verify:
+    post:
+      summary: Start a KYC verification workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+components:
+  schemas:
+    VerificationRequest:
+      type: object
+      properties:
+        applicantId:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+    VerificationResponse:
+      type: object
+      properties:
+        verificationId:
+          type: string
+        status:
+          type: string
+    Document:
+      type: object
+      properties:
+        type:
+          type: string
+        imageData:
+          type: string
