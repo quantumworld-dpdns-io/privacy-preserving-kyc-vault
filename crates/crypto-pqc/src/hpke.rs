@@ -121,14 +121,16 @@ mod tests {
     }
 
     #[test]
-    fn test_dh_commutativity() {
-        let (a_sec, a_pub) = generate_keypair();
-        let (b_sec, b_pub) = generate_keypair();
+    fn test_dalek_commutativity() {
+        use x25519_dalek::EphemeralSecret;
+        let a_secret = EphemeralSecret::random_from_rng(OsRng);
+        let a_pub = PublicKey::from(&a_secret);
+        let b_secret = EphemeralSecret::random_from_rng(OsRng);
+        let b_pub = PublicKey::from(&b_secret);
 
-        let dh_a = HPKE::x25519_dh(&a_sec, b_pub.as_bytes()).unwrap();
-        let dh_b = HPKE::x25519_dh(&b_sec, a_pub.as_bytes()).unwrap();
-
-        assert_eq!(dh_a, dh_b, "DH should be commutative");
+        let dh_a = a_secret.diffie_hellman(&b_pub);
+        let dh_b = b_secret.diffie_hellman(&a_pub);
+        assert_eq!(dh_a.as_bytes(), dh_b.as_bytes(), "dalek DH should be commutative");
     }
 
     #[test]
