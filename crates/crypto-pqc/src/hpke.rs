@@ -3,7 +3,7 @@ use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use curve25519_dalek::{scalar::Scalar, MontgomeryPoint};
+use x25519_dalek::{MontgomeryPoint, Scalar};
 use rand::RngCore;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
