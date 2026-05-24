@@ -15,33 +15,3 @@ metadata:
     openshift.io/sa.scc.allow-privileged: "false"
     openshift.io/sa.scc.supplemental-groups: "1000-2000"
     openshift.io/sa.scc.fsGroup: "1000"
----
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: kyc-vault-quota
-  namespace: kyc-vault
-spec:
-  hard:
-    requests.cpu: "32"
-    requests.memory: "128Gi"
-    limits.cpu: "64"
-    limits.memory: "256Gi"
-    persistentvolumeclaims: "20"
-    services.loadbalancers: "5"
-    count/ingresses.extensions: "3"
----
-apiVersion: v1
-kind: LimitRange
-metadata:
-  name: kyc-vault-limits
-  namespace: kyc-vault
-spec:
-  limits:
-    - default:
-        cpu: "500m"
-        memory: "512Mi"
-      defaultRequest:
-        cpu: "100m"
-        memory: "128Mi"
-      type: Container

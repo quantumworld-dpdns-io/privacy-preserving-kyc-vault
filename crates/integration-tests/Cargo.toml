@@ -1,0 +1,22 @@
+[package]
+name = "kyc-vault-integration-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+tokio.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+reqwest = { version = "0.12", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+kyc-vault-core = { path = "../core" }
+kyc-vault-did = { path = "../did" }
+kyc-vault-crypto-pqc = { path = "../crypto-pqc" }
+kyc-vault-zkp = { path = "../zkp" }
+kyc-vault-governance = { path = "../governance" }
+kyc-vault-reputation = { path = "../reputation" }
