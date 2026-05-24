@@ -135,19 +135,36 @@ mod tests {
 
     #[test]
     fn test_my_dh_matches_dalek() {
+        use rand_core::{CryptoRng, RngCore};
         use x25519_dalek::EphemeralSecret;
-        let my_sec = EphemeralSecret::random_from_rng(OsRng);
-        let my_pub = PublicKey::from(&my_sec);
-        let other_sec = EphemeralSecret::random_from_rng(OsRng);
-        let other_pub = PublicKey::from(&other_sec);
 
-        // Dalek's DH
-        let dalek_shared = my_sec.diffie_hellman(&other_pub);
+        struct FixedRng([u8; 32], bool);
+        impl RngCore for FixedRng {
+            fn next_u32(&mut self) -> u32 { unimplemented!() }
+            fn next_u64(&mut self) -> u64 { unimplemented!() }
+            fn fill_bytes(&mut self, dest: &mut [u8]) {
+                dest.copy_from_slice(&self.0);
+                self.1 = true;
+            }
+            fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+                self.fill_bytes(dest);
+                Ok(())
+            }
+        }
+        impl CryptoRng for FixedRng {}
 
-        // My DH - but I need to recreate my secret from bytes...
-        // Skip this for now - let me just check if the public keys match
-        // Since we can't extract the secret from EphemeralSecret, let's instead
-        // generate a keypair using our method and compare DH results
+        let alice_bytes = [0x41u8; 32];
+        let bob_bytes = [0x42u8; 32];
+
+        let a_sec = EphemeralSecret::random_from_rng(&mut FixedRng(alice_bytes, false));
+        let a_pub = PublicKey::from(&a_sec);
+        let b_sec = EphemeralSecret::random_from_rng(&mut FixedRng(bob_bytes, false));
+        let b_pub = PublicKey::from(&b_sec);
+
+        let dh_dalek = a_sec.diffie_hellman(&b_pub);
+
+        let dh_mine = HPKE::x25519_dh(&alice_bytes, b_pub.as_bytes()).unwrap();
+        assert_eq!(dh_dalek.as_bytes(), &dh_mine, "My DH should match dalek's DH");
     }
 
     #[test]
