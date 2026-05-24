@@ -152,7 +152,7 @@ Platform Registration → DPA Acceptance → Consent Token Issuance → Processi
 | 32(1)(d) — Regular testing of effectiveness | DR testing schedule, chaos engineering, weekly backup restore tests | `docs/runbooks/disaster-recovery.md:369` |
 | 32(2) — Risk-appropriate security level | 9-layer defense-in-depth architecture | `docs/ARCHITECTURE.md:108` |
 | 32(3) — Adherence to code of conduct | NIST FIPS 203/204/205 standards | `docs/SECURITY.md:8` |
-| 32(4) — Controller/processor verification | SOC 2 Type II, external penetration tests | — |
+| 32(4) — Controller/processor verification | SOC 2 Type II, external penetration tests | `docs/compliance/soc2-controls.md:144` |
 
 ## Breach Notification Procedure (Arts. 33-34)
 
