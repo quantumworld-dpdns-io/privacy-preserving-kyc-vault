@@ -101,7 +101,9 @@ mod tests {
 
     fn hex_to_bytes(hex: &str) -> [u8; 32] {
         let mut bytes = [0u8; 32];
-        hex::decode_to_slice(hex, &mut bytes).unwrap();
+        for i in 0..32 {
+            bytes[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap();
+        }
         bytes
     }
 
