@@ -338,6 +338,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "chrono",
+ "curve25519-dalek",
  "rand",
  "serde",
  "serde_json",
