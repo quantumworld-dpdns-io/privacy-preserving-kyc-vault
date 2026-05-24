@@ -1,0 +1,83 @@
+groups:
+  - name: zkp_operations
+    interval: 30s
+    rules:
+      - alert: ZKPGenerationHighLatency
+        expr: histogram_quantile(0.95, rate(zkp_proof_generation_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: zkp
+        annotations:
+          summary: "ZKP generation p95 latency above 30s"
+          description: "ZKP generation p95 latency is {{ $value }}s for method {{ $labels.method }}."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/zkp-high-latency"
+
+      - alert: ZKPVerificationHighLatency
+        expr: histogram_quantile(0.99, rate(zkp_verification_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: zkp
+        annotations:
+          summary: "ZKP verification p99 latency above 5s"
+          description: "ZKP verification p99 latency is {{ $value }}s."
+
+      - alert: ZKPGenerationFailureRate
+        expr: rate(zkp_proof_generation_errors_total[5m]) / rate(zkp_proof_generation_starts_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: zkp
+        annotations:
+          summary: "ZKP proof generation failure rate above 5%"
+          description: "Failure rate is {{ $value | humanizePercentage }}."
+
+      - alert: ZKPVerificationFailureRate
+        expr: rate(zkp_verification_errors_total[5m]) / rate(zkp_verification_requests_total[5m]) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+          team: zkp
+        annotations:
+          summary: "ZKP verification failure rate above 2%"
+          description: "Verification failure rate is {{ $value | humanizePercentage }}."
+
+      - alert: ZKPCircuitCompilationFailure
+        expr: rate(zkp_circuit_compilation_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: zkp
+        annotations:
+          summary: "ZKP circuit compilation failures detected"
+          description: "Circuit compilation errors at rate {{ $value }}/s for circuit {{ $labels.circuit }}."
+
+      - alert: ZKPProverMemoryHigh
+        expr: zkp_prover_memory_usage_bytes > 1073741824
+        for: 5m
+        labels:
+          severity: warning
+          team: zkp
+        annotations:
+          summary: "ZKP prover memory usage exceeds 1GB"
+          description: "Prover memory usage is {{ $value | humanizeBytes }}."
+
+      - alert: ZKPWitnessGenerationSlow
+        expr: histogram_quantile(0.95, rate(zkp_witness_generation_duration_seconds_bucket[5m])) > 10
+        for: 10m
+        labels:
+          severity: warning
+          team: zkp
+        annotations:
+          summary: "ZKP witness generation slow"
+          description: "Witness generation p95 latency is {{ $value }}s."
+
+      - alert: ZKPCRSSizeLarge
+        expr: zkp_crs_size_bytes > 1073741824
+        labels:
+          severity: info
+          team: zkp
+        annotations:
+          summary: "ZKP common reference string size exceeds 1GB"
+          description: "CRS size is {{ $value | humanizeBytes }} for circuit {{ $labels.circuit }}."
