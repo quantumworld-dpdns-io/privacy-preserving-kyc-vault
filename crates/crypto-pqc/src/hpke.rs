@@ -114,18 +114,6 @@ mod tests {
         let shared = HPKE::x25519_dh(&alice_priv, &bob_pub).unwrap();
         assert_eq!(shared, expected_shared);
     }
-        out
-    }
-
-    #[test]
-    fn test_rfc7748_x25519_test_vector() {
-        let alice_priv = hex_arr(b"77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a");
-        let bob_pub = hex_arr(b"de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f");
-        let expected_shared = hex_arr(b"4a5d9d5ba4ce2de8198e4c52b5168b9c5e2b0c6c111f5edc0b26e5e4b0e1f1b");
-
-        let shared = HPKE::x25519_dh(&alice_priv, &bob_pub).unwrap();
-        assert_eq!(shared, expected_shared);
-    }
 
     #[test]
     fn test_hpke_roundtrip() {
