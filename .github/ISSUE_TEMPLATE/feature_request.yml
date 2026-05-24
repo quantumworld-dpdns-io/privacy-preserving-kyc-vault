@@ -1,0 +1,80 @@
+name: Feature Request
+description: Suggest an idea or enhancement for this project
+title: "[Feature] "
+labels: [enhancement, triage]
+type: Feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please fill out the details below.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What area does this feature relate to?
+      options:
+        - core functionality
+        - performance
+        - security
+        - documentation
+        - developer experience
+        - observability
+        - compliance
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - critical (blocking)
+        - high (important)
+        - medium (nice to have)
+        - low (future consideration)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: I'm always frustrated when [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: I would like to see [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe alternatives you've considered
+      placeholder: I also considered [...]
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Add sketches, links, or references here.
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      options:
+        - label: I have searched existing issues for duplicates
+          required: true
+        - label: I am willing to contribute this feature
