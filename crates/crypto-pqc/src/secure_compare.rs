@@ -22,7 +22,7 @@ impl SecureCompare {
 
     pub fn select(choice: bool, a: &[u8], b: &[u8]) -> Vec<u8> {
         let mask = if choice { 0x00u8 } else { 0xffu8 };
-        let len = a.len().max(b.len());
+        let len = if choice { a.len() } else { b.len() };
         let mut result = Vec::with_capacity(len);
         for i in 0..len {
             let ai = a.get(i).copied().unwrap_or(0);
