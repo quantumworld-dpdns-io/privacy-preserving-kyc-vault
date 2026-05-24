@@ -1,0 +1,318 @@
+{
+  "classes": [
+    {
+      "class": "CredentialVector",
+      "description": "Vector embeddings of KYC credentials for similarity search and deduplication",
+      "vectorIndexType": "hnsw",
+      "vectorizer": "none",
+      "moduleConfig": {
+        "text2vec-transformers": {
+          "model": "all-MiniLM-L6-v2",
+          "poolingStrategy": "mean",
+          "inferenceUrl": "http://localhost:8080"
+        }
+      },
+      "properties": [
+        {
+          "name": "credentialId",
+          "dataType": ["string"],
+          "description": "Unique credential identifier",
+          "indexFilterable": true,
+          "indexSearchable": true
+        },
+        {
+          "name": "did",
+          "dataType": ["string"],
+          "description": "Decentralized identifier of the credential subject",
+          "indexFilterable": true,
+          "indexSearchable": true
+        },
+        {
+          "name": "credentialType",
+          "dataType": ["string"],
+          "description": "Type of credential (passport, drivers_license, national_id, utility_bill, bank_statement)",
+          "indexFilterable": true,
+          "indexSearchable": true
+        },
+        {
+          "name": "issuerDid",
+          "dataType": ["string"],
+          "description": "DID of the credential issuer",
+          "indexFilterable": true
+        },
+        {
+          "name": "issuanceDate",
+          "dataType": ["date"],
+          "description": "Date when the credential was issued"
+        },
+        {
+          "name": "expirationDate",
+          "dataType": ["date"],
+          "description": "Date when the credential expires"
+        },
+        {
+          "name": "verificationStatus",
+          "dataType": ["string"],
+          "description": "Current verification status (pending, verified, rejected, expired)",
+          "indexFilterable": true
+        },
+        {
+          "name": "verificationTier",
+          "dataType": ["string"],
+          "description": "KYC verification tier (basic, standard, enhanced, enterprise)",
+          "indexFilterable": true
+        },
+        {
+          "name": "schemaId",
+          "dataType": ["string"],
+          "description": "JSON Schema identifier for the credential"
+        },
+        {
+          "name": "attributes",
+          "dataType": ["text"],
+          "description": "Extracted credential attributes as JSON text",
+          "indexFilterable": false,
+          "indexSearchable": true
+        },
+        {
+          "name": "embedding",
+          "dataType": ["number[]"],
+          "description": "Vector embedding (384-dim from all-MiniLM-L6-v2)",
+          "indexFilterable": false,
+          "indexSearchable": false
+        },
+        {
+          "name": "jurisdiction",
+          "dataType": ["string"],
+          "description": "Issuing jurisdiction/country code",
+          "indexFilterable": true
+        },
+        {
+          "name": "createdAt",
+          "dataType": ["date"],
+          "description": "Record creation timestamp"
+        },
+        {
+          "name": "lastUpdated",
+          "dataType": ["date"],
+          "description": "Last update timestamp"
+        }
+      ],
+      "vectorIndexConfig": {
+        "skip": false,
+        "distance": "cosine",
+        "efConstruction": 128,
+        "ef": -1,
+        "maxConnections": 64,
+        "dynamicEfMin": 100,
+        "dynamicEfMax": 500,
+        "dynamicEfFactor": 8,
+        "vectorCacheMaxObjects": 500000,
+        "cleanupIntervalSeconds": 300
+      },
+      "shardingConfig": {
+        "virtualPerPhysical": 128,
+        "desiredCount": 3,
+        "actualCount": 3,
+        "desiredVirtualCount": 128,
+        "actualVirtualCount": 128,
+        "key": "_id",
+        "strategy": "hash",
+        "function": "murmur3"
+      },
+      "replicationConfig": {
+        "factor": 3
+      },
+      "invertedIndexConfig": {
+        "bm25": {
+          "k1": 1.2,
+          "b": 0.75
+        },
+        "stopwords": {
+          "preset": "en",
+          "additions": [],
+          "removals": []
+        },
+        "indexTimestamps": true,
+        "indexNullState": false,
+        "indexPropertyLength": false
+      },
+      "multiTenancyConfig": {
+        "enabled": true,
+        "autoTenantActivation": true
+      }
+    },
+    {
+      "class": "VerificationSession",
+      "description": "KYC verification sessions and their results",
+      "vectorizer": "none",
+      "properties": [
+        {
+          "name": "sessionId",
+          "dataType": ["string"],
+          "description": "Unique session identifier",
+          "indexFilterable": true
+        },
+        {
+          "name": "applicantDid",
+          "dataType": ["string"],
+          "description": "DID of the applicant",
+          "indexFilterable": true
+        },
+        {
+          "name": "status",
+          "dataType": ["string"],
+          "description": "Session status (initiated, in_progress, completed, failed)",
+          "indexFilterable": true
+        },
+        {
+          "name": "verificationResult",
+          "dataType": ["string"],
+          "description": "Final verification result (approved, rejected, manual_review)",
+          "indexFilterable": true
+        },
+        {
+          "name": "riskScore",
+          "dataType": ["number"],
+          "description": "Aggregated risk score 0-1",
+          "indexFilterable": true
+        },
+        {
+          "name": "credentialIds",
+          "dataType": ["string[]"],
+          "description": "IDs of credentials submitted in this session"
+        },
+        {
+          "name": "workflowVersion",
+          "dataType": ["string"],
+          "description": "KYC workflow version used"
+        },
+        {
+          "name": "startedAt",
+          "dataType": ["date"]
+        },
+        {
+          "name": "completedAt",
+          "dataType": ["date"]
+        }
+      ],
+      "shardingConfig": {
+        "desiredCount": 3,
+        "strategy": "hash"
+      },
+      "replicationConfig": {
+        "factor": 3
+      }
+    },
+    {
+      "class": "FraudIndicator",
+      "description": "Fraud indicators detected during KYC processing",
+      "vectorizer": "none",
+      "properties": [
+        {
+          "name": "indicatorId",
+          "dataType": ["string"],
+          "description": "Unique indicator identifier",
+          "indexFilterable": true
+        },
+        {
+          "name": "sessionId",
+          "dataType": ["string"],
+          "description": "Associated verification session ID",
+          "indexFilterable": true
+        },
+        {
+          "name": "indicatorType",
+          "dataType": ["string"],
+          "description": "Type of fraud indicator",
+          "indexFilterable": true
+        },
+        {
+          "name": "severity",
+          "dataType": ["string"],
+          "description": "Severity level (low, medium, high, critical)",
+          "indexFilterable": true
+        },
+        {
+          "name": "description",
+          "dataType": ["text"]
+        },
+        {
+          "name": "detectedAt",
+          "dataType": ["date"]
+        }
+      ],
+      "shardingConfig": {
+        "desiredCount": 2,
+        "strategy": "hash"
+      }
+    },
+    {
+      "class": "ComplianceReport",
+      "description": "Regulatory compliance reports for KYC verifications",
+      "vectorizer": "none",
+      "properties": [
+        {
+          "name": "reportId",
+          "dataType": ["string"],
+          "description": "Unique report identifier",
+          "indexFilterable": true
+        },
+        {
+          "name": "sessionId",
+          "dataType": ["string"],
+          "description": "Associated verification session ID",
+          "indexFilterable": true
+        },
+        {
+          "name": "amlStatus",
+          "dataType": ["string"],
+          "description": "AML screening status",
+          "indexFilterable": true
+        },
+        {
+          "name": "pepStatus",
+          "dataType": ["string"],
+          "description": "PEP screening status",
+          "indexFilterable": true
+        },
+        {
+          "name": "sanctionsStatus",
+          "dataType": ["string"],
+          "description": "Sanctions list check status",
+          "indexFilterable": true
+        },
+        {
+          "name": "jurisdiction",
+          "dataType": ["string"],
+          "description": "Jurisdiction for compliance",
+          "indexFilterable": true
+        },
+        {
+          "name": "isCompliant",
+          "dataType": ["boolean"],
+          "indexFilterable": true
+        },
+        {
+          "name": "generatedAt",
+          "dataType": ["date"]
+        }
+      ],
+      "shardingConfig": {
+        "desiredCount": 2,
+        "strategy": "hash"
+      }
+    }
+  ],
+  "schemaVersion": 4,
+  "moduleConfig": {
+    "text2vec-transformers": {
+      "image": "semitechnologies/transformers-inference:sentence-transformers-all-MiniLM-L6-v2",
+      "port": 8080
+    },
+    "generative-openai": {
+      "model": "mistral",
+      "baseURL": "http://localhost:11434/v1"
+    }
+  }
+}
