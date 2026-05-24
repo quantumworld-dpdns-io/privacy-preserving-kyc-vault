@@ -1,0 +1,95 @@
+groups:
+  - name: kyc_pipeline
+    interval: 30s
+    rules:
+      - alert: KYCPipelineHighLatency
+        expr: histogram_quantile(0.95, rate(kyc_pipeline_duration_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "KYC pipeline p95 latency above 60s"
+          description: "KYC pipeline p95 latency is {{ $value }}s for the last 5 minutes."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/kyc-high-latency"
+
+      - alert: KYCPipelineFailureRate
+        expr: rate(kyc_pipeline_failures_total[5m]) / rate(kyc_pipeline_starts_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: kyc
+        annotations:
+          summary: "KYC pipeline failure rate above 10%"
+          description: "Pipeline failure rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/kyc-pipeline-failure"
+
+      - alert: KYCDocumentVerificationTimeout
+        expr: rate(kyc_document_verification_timeouts_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "KYC document verification timeouts detected"
+          description: "Document verification timeouts occurring at rate {{ $value }}/s."
+
+      - alert: KYCLivenessCheckFailure
+        expr: rate(kyc_liveness_check_failures_total[5m]) / rate(kyc_liveness_check_starts_total[5m]) > 0.15
+        for: 5m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "High liveness check failure rate"
+          description: "Liveness check failure rate is {{ $value | humanizePercentage }}."
+
+      - alert: KYCAmlScreeningSpike
+        expr: rate(kyc_aml_positive_hits_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: critical
+          team: kyc
+        annotations:
+          summary: "AML screening positive spike"
+          description: "{{ $value }} positive AML hits detected per second. Potential compliance issue."
+
+      - alert: KYCOcrAccuracyDegraded
+        expr: kyc_ocr_accuracy_score < 0.95
+        for: 10m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "OCR accuracy degraded below 95%"
+          description: "OCR accuracy is {{ $value | humanizePercentage }}."
+
+      - alert: KYCVendorAPIRateLimit
+        expr: kyc_vendor_api_remaining_requests < 100
+        for: 1m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "KYC vendor API rate limit nearly exhausted"
+          description: "Only {{ $value }} requests remaining for vendor {{ $labels.vendor }}."
+
+      - alert: KYCQueueDepthHigh
+        expr: kyc_pipeline_queue_depth > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "KYC pipeline queue depth exceeds 500"
+          description: "Queue depth is {{ $value }} submissions pending."
+
+      - alert: KYCManualReviewOverflow
+        expr: kyc_manual_review_queue_size > 100
+        for: 15m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "Manual review queue overflow"
+          description: "{{ $value }} cases pending manual review."
