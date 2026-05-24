@@ -1,0 +1,102 @@
+openapi: 3.0.3
+info:
+  title: DID Service API
+  description: API for managing Decentralized Identifiers (DIDs).
+  version: 1.0.0
+servers:
+  - url: https://api.kyc-vault.com/v1/did
+paths:
+  /:
+    post:
+      summary: Create a new DID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DIDCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DIDResponse'
+  /{did}:
+    get:
+      summary: Resolve a DID
+      parameters:
+        - name: did
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DIDDocument'
+    patch:
+      summary: Update a DID
+      parameters:
+        - name: did
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Deactivate a DID
+      parameters:
+        - name: did
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deactivated
+components:
+  schemas:
+    DIDCreateRequest:
+      type: object
+      properties:
+        method:
+          type: string
+          enum: [key, web, ethr, polygon, solana]
+        options:
+          type: object
+    DIDResponse:
+      type: object
+      properties:
+        did:
+          type: string
+        document:
+          $ref: '#/components/schemas/DIDDocument'
+    DIDDocument:
+      type: object
+      properties:
+        '@context':
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+        verificationMethod:
+          type: array
+          items:
+            type: object
+        authentication:
+          type: array
+          items:
+            type: string
