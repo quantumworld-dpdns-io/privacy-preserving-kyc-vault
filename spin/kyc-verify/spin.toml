@@ -1,0 +1,51 @@
+spin_version = "3.0"
+name = "kyc-verify"
+version = "1.0.0"
+description = "KYC Vault credential verification service - Fermyon Spin component"
+authors = ["KYC Vault Team"]
+trigger = { type = "http", base = "/api/v1/credential" }
+
+[application.router]
+assets = "static"
+
+[application.features]
+wasi_fileio = true
+key_value = true
+sqlite = true
+
+[[trigger.http]]
+route = "/verify"
+component = "kyc-verify"
+
+[[trigger.http]]
+route = "/:id"
+component = "kyc-verify"
+
+[[trigger.http]]
+route = "/health"
+component = "kyc-verify"
+
+[component.kyc-verify]
+description = "Credential verification and lookup handler"
+source = "../../target/wasm32-wasip1/release/kyc_verify.wasm"
+key_value_stores = ["default"]
+sqlite_databases = ["default"]
+
+[component.kyc-verify.trigger.http]
+route = "/api/v1/credential"
+executor = "wasi"
+
+[component.kyc-verify.environment]
+RUST_LOG = "info"
+VERIFICATION_SCHEMA = "W3C_VC_v1.1"
+
+[component.kyc-verify.resources]
+memory = "32 MB"
+cpu = "0.5"
+
+[key_value_store.default]
+type = "sqlite"
+path = "/data/spin-kyc.db"
+
+[sqlite_database.default]
+path = "/data/spin-kyc.db"

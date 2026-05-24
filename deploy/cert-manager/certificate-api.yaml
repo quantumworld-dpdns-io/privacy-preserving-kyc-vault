@@ -1,0 +1,30 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kyc-vault-api-tls
+  namespace: kyc-vault
+spec:
+  secretName: kyc-vault-api-tls
+  duration: 2160h
+  renewBefore: 720h
+  isCA: false
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+  - server auth
+  - client auth
+  dnsNames:
+  - kyc-vault.example.com
+  - "*.kyc-vault.example.com"
+  - kyc-vault.internal
+  - "*.kyc-vault.internal"
+  - kyc-vault.staging.example.com
+  ipAddresses:
+  - 10.0.0.10
+  - 10.0.0.11
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io

@@ -1,0 +1,46 @@
+spin_version = "3.0"
+name = "did-resolve"
+version = "1.0.0"
+description = "KYC Vault DID resolution service - Fermyon Spin component"
+authors = ["KYC Vault Team"]
+trigger = { type = "http", base = "/api/v1/did" }
+
+[application.router]
+assets = "static"
+
+[application.features]
+wasi_fileio = true
+key_value = true
+
+[[trigger.http]]
+route = "/resolve"
+component = "did-resolve"
+
+[[trigger.http]]
+route = "/resolve/bulk"
+component = "did-resolve"
+
+[[trigger.http]]
+route = "/health"
+component = "did-resolve"
+
+[component.did-resolve]
+description = "DID method extraction and document resolution handler"
+source = "../../target/wasm32-wasip1/release/did_resolve.wasm"
+key_value_stores = ["default"]
+
+[component.did-resolve.trigger.http]
+route = "/api/v1/did"
+executor = "wasi"
+
+[component.did-resolve.environment]
+RUST_LOG = "info"
+RESOLVER_CACHE_TTL = "300"
+
+[component.did-resolve.resources]
+memory = "16 MB"
+cpu = "0.25"
+
+[key_value_store.default]
+type = "sqlite"
+path = "/data/spin-did.db"

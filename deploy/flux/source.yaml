@@ -1,0 +1,25 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: kyc-vault
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  url: https://github.com/org/privacy-preserving-kyc-vault
+  ignore: |
+    /*.md
+    /.github/
+    /docs/
+    /tests/
+    /scripts/
+    docker-compose.yaml
+    Makefile
+  secretRef:
+    name: flux-github-auth
+  timeout: 60s
+  verify:
+    mode: HEAD
+    secretRef:
+      name: cosign-public-keys

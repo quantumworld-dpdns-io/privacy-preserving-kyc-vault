@@ -1,0 +1,109 @@
+package kyc-vault:did;
+
+interface did-types {
+  /// The DID method identifier (e.g. "key", "web", "ethr")
+  enum did-method {
+    key,
+    web,
+    ethr,
+    other,
+  }
+
+  /// A verification method within a DID document
+  record verification-method {
+    id: string,
+    method-type: string,
+    controller: string,
+    public-key-multibase: option<string>,
+    public-key-jwk: option<string>,
+  }
+
+  /// A service endpoint in a DID document
+  record service {
+    id: string,
+    service-type: string,
+    service-endpoint: string,
+  }
+
+  /// A W3C DID Document
+  record did-document {
+    context: list<string>,
+    id: string,
+    verification-method: option<list<verification-method>>,
+    authentication: option<list<string>>,
+    assertion-method: option<list<string>>,
+    key-agreement: option<list<string>>,
+    capability-invocation: option<list<string>>,
+    capability-delegation: option<list<string>>,
+    service: option<list<service>>,
+    created: option<string>,
+    updated: option<string>,
+  }
+
+  /// Result of a DID resolution
+  record did-resolution-result {
+    document: did-document,
+    method: did-method,
+    method-specific-id: string,
+    resolved-at: string,
+    cache-hit: bool,
+    duration-ms: u64,
+  }
+
+  /// Error details for failed resolution
+  record did-resolution-error {
+    did: string,
+    code: string,
+    message: string,
+  }
+
+  /// Parsed components of a DID string
+  record parsed-did {
+    full: string,
+    method: did-method,
+    method-specific-id: string,
+  }
+}
+
+interface did-resolver {
+  use did-types.{did-document, did-resolution-result, did-resolution-error, parsed-did, did-method};
+
+  /// Parse a DID string into its components
+  parse-did: func(did: string) -> result<parsed-did, string>;
+
+  /// Resolve a DID to its DID Document
+  resolve: func(did: string) -> result<did-resolution-result, did-resolution-error>;
+
+  /// Resolve multiple DIDs in bulk
+  resolve-bulk: func(dids: list<string>) -> list<result<did-resolution-result, did-resolution-error>>;
+
+  /// Check if a DID method is supported
+  supports-method: func(method: did-method) -> bool;
+
+  /// Invalidate the cache for a specific DID
+  invalidate-cache: func(did: string);
+}
+
+interface did-verification {
+  use did-types.{did-document, verification-method};
+
+  /// Verify a signature against a DID document
+  verify-signature: func(
+    document: did-document,
+    data: list<u8>,
+    signature: list<u8>,
+    verification-method-id: string
+  ) -> result<bool, string>;
+
+  /// Get the verification method by ID from a DID document
+  get-verification-method: func(
+    document: did-document,
+    id: string
+  ) -> option<verification-method>;
+}
+
+world did-world {
+  import did-resolver;
+  import did-verification;
+  export did-resolver;
+}

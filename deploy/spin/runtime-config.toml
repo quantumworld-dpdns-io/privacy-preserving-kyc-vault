@@ -1,0 +1,235 @@
+# Fermyon Spin Runtime Configuration - KYC Vault Production
+# ============================================================
+# Applied via: spin up --runtime-config-file deploy/spin/runtime-config.toml
+# ============================================================
+
+[config]
+version = "3.0"
+environment = "production"
+log_dir = "/var/log/spin"
+data_dir = "/data/spin"
+temp_dir = "/tmp/spin"
+state_dir = "/var/lib/spin"
+config_file = "/etc/spin/config.toml"
+
+[config.secrets]
+key_store = "aws-secrets-manager"
+key_store_region = "us-east-1"
+key_store_prefix = "kyc-vault/spin"
+
+# ============================================================
+# SQLite Database
+# ============================================================
+[sqlite]
+default_connection = "file:/data/spin/spin.db?mode=rwc"
+
+[sqlite.databases.kyc]
+path = "/data/spin/kyc.db"
+create = true
+
+[sqlite.databases.credentials]
+path = "/data/spin/credentials.db"
+create = true
+
+# ============================================================
+# Key-Value Store
+# ============================================================
+[key_value_store.default]
+type = "sqlite"
+path = "/data/spin/kv.db"
+
+[key_value_store.credential-store]
+type = "redis"
+redis_url = "redis://redis-master.redis.svc.cluster.local:6379"
+
+[key_value_store.did-cache]
+type = "redis"
+redis_url = "redis://redis-master.redis.svc.cluster.local:6379"
+redis_key_prefix = "did:cache:"
+
+[key_value_store.session-store]
+type = "redis"
+redis_url = "redis://redis-master.redis.svc.cluster.local:6379"
+redis_key_prefix = "session:"
+
+# ============================================================
+# Allowed HTTP Hosts
+# ============================================================
+[allowed_http_hosts]
+hosts = [
+    "https://api.kyc-vault.com",
+    "https://auth.kyc-vault.com",
+    "https://issuer.kyc-vault.com",
+    "https://resolver.kyc-vault.com",
+    "https://*.kyc-vault.internal",
+    "https://vault.kyc-vault.internal:8200",
+]
+
+# ============================================================
+# TLS Configuration
+# ============================================================
+[tls]
+enabled = true
+cert_file = "/etc/spin/tls/tls.crt"
+key_file = "/etc/spin/tls/tls.key"
+ca_file = "/etc/spin/tls/ca.crt"
+min_tls_version = "1.3"
+
+[tls.client_auth]
+enabled = true
+ca_file = "/etc/spin/tls/client-ca.crt"
+mode = "require"
+
+# ============================================================
+# Rate Limiting
+# ============================================================
+[rate_limiting]
+enabled = true
+backend = "redis"
+redis_url = "redis://redis-master.redis.svc.cluster.local:6379"
+
+[rate_limiting.defaults]
+requests_per_second = 100
+burst_size = 200
+
+[rate_limiting.endpoints]
+"/api/v1/credential/verify" = { requests_per_second = 50, burst_size = 100 }
+"/api/v1/did/resolve" = { requests_per_second = 200, burst_size = 500 }
+"/api/v1/health" = { requests_per_second = 1000, burst_size = 2000 }
+
+# ============================================================
+# Observability
+# ============================================================
+[observability]
+enabled = true
+
+[observability.metrics]
+enabled = true
+format = "prometheus"
+exporter = "push"
+push_endpoint = "http://prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+push_interval_seconds = 15
+
+[observability.tracing]
+enabled = true
+exporter = "otlp"
+otlp_endpoint = "http://otel-collector.observability.svc.cluster.local:4317"
+service_name = "kyc-vault-spin"
+sampling_ratio = 0.1
+
+[observability.logging]
+format = "json"
+level = "info"
+output = "file"
+file_path = "/var/log/spin/spin.log"
+max_size_mb = 100
+max_backups = 10
+max_age_days = 30
+
+# ============================================================
+# Wasm Runtime Configuration
+# ============================================================
+[wasm]
+engine = "wasmtime"
+pool_max_instances = 500
+pool_idle_timeout_seconds = 300
+compilation_cache_enabled = true
+compilation_cache_dir = "/data/spin/wasm-cache"
+max_module_size_bytes = 5242880
+fuel_metering_enabled = true
+default_fuel_limit = 1000000
+
+[wasm.allowed_wasi_hosts]
+hosts = [
+    "api.kyc-vault.com",
+    "auth.kyc-vault.com",
+    "otel-collector.observability.svc.cluster.local",
+]
+
+[wasm.trusted_modules]
+enforce_hashes = true
+signature_verification = "required"
+signer_public_key = "ecdsa-p256:MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE..."
+
+# ============================================================
+# Component-Specific Configuration
+# ============================================================
+[component.kyc-verify]
+instances = 20
+fuel_limit = 500000
+memory = "64 MB"
+cpu = "0.5"
+timeout_seconds = 30
+health_check_path = "/api/v1/credential/health"
+[component.kyc-verify.env]
+RUST_LOG = "info,spin=warn"
+VERIFICATION_SCHEMA = "W3C_VC_v1.1"
+CACHE_TTL_SECONDS = "300"
+
+[component.did-resolve]
+instances = 30
+fuel_limit = 300000
+memory = "32 MB"
+cpu = "0.25"
+timeout_seconds = 15
+health_check_path = "/api/v1/did/health"
+[component.did-resolve.env]
+RUST_LOG = "info,spin=warn"
+RESOLVER_CACHE_TTL = "300"
+RESOLVER_TIMEOUT_SECONDS = "10"
+
+# ============================================================
+# Autoscaling
+# ============================================================
+[autoscaling]
+enabled = true
+backend = "keda"
+
+[autoscaling.rules]
+cpu_threshold_percent = 70
+memory_threshold_percent = 80
+requests_per_second_threshold = 500
+min_replicas = 2
+max_replicas = 20
+cooldown_seconds = 120
+
+# ============================================================
+# Security
+# ============================================================
+[security]
+content_security_policy = "default-src 'self'; script-src 'none'; object-src 'none'"
+strict_transport_security = "max-age=31536000; includeSubDomains; preload"
+x_content_type_options = "nosniff"
+x_frame_options = "DENY"
+referrer_policy = "strict-origin-when-cross-origin"
+
+[security.cors]
+enabled = true
+allowed_origins = ["https://app.kyc-vault.com"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE"]
+allowed_headers = ["Content-Type", "Authorization", "X-Request-Id"]
+max_age_seconds = 3600
+
+# ============================================================
+# High Availability
+# ============================================================
+[high_availability]
+enabled = true
+mode = "active-active"
+health_check_interval_seconds = 10
+health_check_timeout_seconds = 3
+unhealthy_threshold = 3
+health_check_path = "/api/v1/health"
+leader_election = true
+leader_election_backend = "redis"
+leader_election_key = "spin:leader"
+
+# ============================================================
+# Redis Triggers
+# ============================================================
+[trigger.redis]
+default_address = "redis://redis-master.redis.svc.cluster.local:6379"
+
+[trigger.redis.consumers]
+"credential.verify" = { component = "redis-credential-worker", concurrency = 10 }
+"credential.analyze" = { component = "redis-credential-analyzer", concurrency = 5 }

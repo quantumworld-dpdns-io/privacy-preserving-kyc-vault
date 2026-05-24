@@ -1,0 +1,64 @@
+collector:
+  # Queue size for in-memory buffer before persisting
+  queue-size: 5000
+  # Number of parallel workers consuming the queue
+  num-workers: 100
+
+  # Zipkin support
+  zipkin:
+    enabled: true
+    host-port: ":9411"
+
+  # gRPC endpoint for direct ingestion
+  grpc:
+    host-port: ":4317"
+
+  # Thrift HTTP endpoint
+  http:
+    host-port: ":14268"
+
+  # Health check endpoint
+  health-check:
+    host-port: ":14269"
+
+storage:
+  type: elasticsearch
+  options:
+    es:
+      server-urls: http://elasticsearch.monitoring:9200
+      username: ${ES_USERNAME}
+      password: ${ES_PASSWORD}
+      index-prefix: jaeger-kyc-vault
+      max-span-age: 168h
+      num-shards: 3
+      num-replicas: 1
+      create-index-templates: true
+      use-aliases: true
+      tags-as-fields:
+        all: true
+        include: ""
+        exclude: ""
+
+ingester:
+  deadlock:
+    interval: 5m0s
+
+sampling:
+  strategies:
+    default:
+      type: probabilistic
+      param: 0.1
+    service_sampling:
+    - service: kyc-vault-api
+      type: probabilistic
+      param: 1.0
+    - service: kyc-vault-worker
+      type: rate_limiting
+      param: 5
+    - service: kyc-vault-db
+      type: probabilistic
+      param: 0.01
+
+logging:
+  level: info
+  format: json

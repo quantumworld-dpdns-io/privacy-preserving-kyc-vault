@@ -1,0 +1,181 @@
+{
+  "defaultTaxRate": "0.000",
+  "currency": "USD",
+  "jurisdictions": [
+    {
+      "code": "US",
+      "name": "United States",
+      "type": "sales_tax",
+      "description": "US sales tax varies by state; rates listed are base state-level",
+      "rates": [
+        { "code": "US-AL", "name": "Alabama", "rate": "0.0400", "notes": "State rate; local additions may apply" },
+        { "code": "US-AK", "name": "Alaska", "rate": "0.0000", "notes": "No state sales tax" },
+        { "code": "US-AZ", "name": "Arizona", "rate": "0.0560", "notes": "State rate" },
+        { "code": "US-CA", "name": "California", "rate": "0.0725", "notes": "State rate; district taxes may add up to 2.5%" },
+        { "code": "US-CO", "name": "Colorado", "rate": "0.0290", "notes": "State rate" },
+        { "code": "US-FL", "name": "Florida", "rate": "0.0600", "notes": "State rate" },
+        { "code": "US-GA", "name": "Georgia", "rate": "0.0400", "notes": "State rate" },
+        { "code": "US-IL", "name": "Illinois", "rate": "0.0625", "notes": "State rate" },
+        { "code": "US-NY", "name": "New York", "rate": "0.0400", "notes": "State rate; NYC adds 4.5%" },
+        { "code": "US-TX", "name": "Texas", "rate": "0.0625", "notes": "State rate" },
+        { "code": "US-WA", "name": "Washington", "rate": "0.0650", "notes": "State rate" }
+      ],
+      "digitalServicesTax": false,
+      "nexusThreshold": { "transactions": 200, "revenue": "100000", "currency": "USD" }
+    },
+    {
+      "code": "GB",
+      "name": "United Kingdom",
+      "type": "vat",
+      "description": "UK VAT (Value Added Tax) - HMRC registered",
+      "rates": [
+        { "code": "GB-STANDARD", "name": "Standard Rate", "rate": "0.2000", "notes": "Most goods and services" },
+        { "code": "GB-REDUCED", "name": "Reduced Rate", "rate": "0.0500", "notes": "Certain goods like children's car seats" },
+        { "code": "GB-ZERO", "name": "Zero Rate", "rate": "0.0000", "notes": "Food, children's clothing, books" }
+      ],
+      "digitalServicesTax": 0.0200,
+      "registrationThreshold": { "revenue": "85000", "currency": "GBP" },
+      "reverseCharge": true,
+      "vatNumberRequired": true
+    },
+    {
+      "code": "EU",
+      "name": "European Union",
+      "type": "vat",
+      "description": "EU VAT Directive rates by member state",
+      "rates": [
+        { "code": "DE", "name": "Germany", "rate": "0.1900", "reducedRate": "0.0700", "notes": "Standard 19%, Reduced 7%" },
+        { "code": "FR", "name": "France", "rate": "0.2000", "reducedRate": "0.0550", "notes": "Standard 20%, Reduced 5.5%" },
+        { "code": "IT", "name": "Italy", "rate": "0.2200", "reducedRate": "0.1000", "notes": "Standard 22%, Reduced 10%" },
+        { "code": "ES", "name": "Spain", "rate": "0.2100", "reducedRate": "0.1000", "notes": "Standard 21%, Reduced 10%" },
+        { "code": "NL", "name": "Netherlands", "rate": "0.2100", "reducedRate": "0.0900", "notes": "Standard 21%, Reduced 9%" },
+        { "code": "IE", "name": "Ireland", "rate": "0.2300", "reducedRate": "0.0900", "notes": "Standard 23%, Reduced 9%" },
+        { "code": "SE", "name": "Sweden", "rate": "0.2500", "reducedRate": "0.1200", "notes": "Standard 25%, Reduced 12%" },
+        { "code": "DK", "name": "Denmark", "rate": "0.2500", "reducedRate": "0.0000", "notes": "Standard 25%" },
+        { "code": "PL", "name": "Poland", "rate": "0.2300", "reducedRate": "0.0800", "notes": "Standard 23%, Reduced 8%" },
+        { "code": "AT", "name": "Austria", "rate": "0.2000", "reducedRate": "0.1000", "notes": "Standard 20%, Reduced 10%" },
+        { "code": "BE", "name": "Belgium", "rate": "0.2100", "reducedRate": "0.0600", "notes": "Standard 21%, Reduced 6%" },
+        { "code": "PT", "name": "Portugal", "rate": "0.2300", "reducedRate": "0.0600", "notes": "Standard 23%, Reduced 6%" },
+        { "code": "FI", "name": "Finland", "rate": "0.2400", "reducedRate": "0.1000", "notes": "Standard 24%, Reduced 10%" }
+      ],
+      "digitalServicesTax": 0.0300,
+      "registrationThreshold": { "revenue": "10000", "currency": "EUR" },
+      "miniOneStopShop": true,
+      "oneStopShop": true,
+      "reverseCharge": true,
+      "vatNumberRequired": true,
+      "euVatRules": "Services to consumers taxed at customer location; OSS declaration required"
+    },
+    {
+      "code": "CA",
+      "name": "Canada",
+      "type": "gst_hst",
+      "description": "Canadian GST/HST by province",
+      "rates": [
+        { "code": "CA-AB", "name": "Alberta", "rate": "0.0500", "notes": "5% GST only" },
+        { "code": "CA-BC", "name": "British Columbia", "rate": "0.1200", "notes": "5% GST + 7% PST" },
+        { "code": "CA-ON", "name": "Ontario", "rate": "0.1300", "notes": "13% HST" },
+        { "code": "CA-QC", "name": "Quebec", "rate": "0.14975", "notes": "5% GST + 9.975% QST" }
+      ],
+      "digitalServicesTax": 0.0300,
+      "registrationThreshold": { "revenue": "30000", "currency": "CAD" }
+    },
+    {
+      "code": "AU",
+      "name": "Australia",
+      "type": "gst",
+      "description": "Australian GST (Goods and Services Tax)",
+      "rates": [
+        { "code": "AU-STANDARD", "name": "Standard Rate", "rate": "0.1000", "notes": "Most goods and services" }
+      ],
+      "digitalServicesTax": false,
+      "registrationThreshold": { "revenue": "75000", "currency": "AUD" }
+    },
+    {
+      "code": "JP",
+      "name": "Japan",
+      "type": "consumption_tax",
+      "description": "Japanese Consumption Tax (JCT)",
+      "rates": [
+        { "code": "JP-STANDARD", "name": "Standard Rate", "rate": "0.1000", "notes": "Standard 10%" },
+        { "code": "JP-REDUCED", "name": "Reduced Rate", "rate": "0.0800", "notes": "Reduced 8% for food (excluding dining out) and newspapers" }
+      ],
+      "digitalServicesTax": false,
+      "registrationThreshold": { "revenue": "10000000", "currency": "JPY" }
+    },
+    {
+      "code": "SG",
+      "name": "Singapore",
+      "type": "gst",
+      "description": "Singapore GST",
+      "rates": [
+        { "code": "SG-STANDARD", "name": "Standard Rate", "rate": "0.0900", "notes": "9% effective 2024" }
+      ],
+      "digitalServicesTax": true,
+      "registrationThreshold": { "revenue": "1000000", "currency": "SGD" }
+    },
+    {
+      "code": "IN",
+      "name": "India",
+      "type": "gst",
+      "description": "Indian GST",
+      "rates": [
+        { "code": "IN-STANDARD", "name": "Standard Rate", "rate": "0.1800", "notes": "18% for most services" },
+        { "code": "IN-REDUCED", "name": "Reduced Rate", "rate": "0.1200", "notes": "12% for certain services" }
+      ],
+      "digitalServicesTax": false,
+      "registrationThreshold": { "revenue": "2000000", "currency": "INR" },
+      "reverseCharge": true,
+      "gstinRequired": true
+    },
+    {
+      "code": "AE",
+      "name": "United Arab Emirates",
+      "type": "vat",
+      "description": "UAE VAT",
+      "rates": [
+        { "code": "AE-STANDARD", "name": "Standard Rate", "rate": "0.0500", "notes": "5%" }
+      ],
+      "digitalServicesTax": false,
+      "registrationThreshold": { "revenue": "375000", "currency": "AED" }
+    },
+    {
+      "code": "NO",
+      "name": "Norway",
+      "type": "vat",
+      "description": "Norwegian VAT",
+      "rates": [
+        { "code": "NO-STANDARD", "name": "Standard Rate", "rate": "0.2500", "notes": "25%" },
+        { "code": "NO-REDUCED", "name": "Reduced Rate", "rate": "0.1500", "notes": "15% for food" }
+      ],
+      "digitalServicesTax": false,
+      "registrationThreshold": { "revenue": "50000", "currency": "NOK" }
+    },
+    {
+      "code": "CH",
+      "name": "Switzerland",
+      "type": "vat",
+      "description": "Swiss VAT",
+      "rates": [
+        { "code": "CH-STANDARD", "name": "Standard Rate", "rate": "0.0770", "notes": "7.7%" },
+        { "code": "CH-REDUCED", "name": "Reduced Rate", "rate": "0.0250", "notes": "2.5% for basic necessities" }
+      ],
+      "digitalServicesTax": false,
+      "registrationThreshold": { "revenue": "100000", "currency": "CHF" }
+    }
+  ],
+  "specialRules": {
+    "gdprDataProcessing": {
+      "description": "GDPR compliance is included; data processing agreements available on Enterprise plan",
+      "taxable": false
+    },
+    "b2bExemptions": {
+      "description": "B2B invoices may be exempt from VAT with valid VAT number under reverse charge mechanism",
+      "requiresVatNumber": true
+    },
+    "digitalServices": {
+      "description": "Digital services (API access, SaaS) taxed at customer location per OECD/G20 Inclusive Framework",
+      "applicableIn": ["EU", "GB", "AU", "SG", "JP", "NO"]
+    }
+  }
+}
