@@ -9,6 +9,8 @@ export interface ApiConfig {
   rateLimitWindowMs: number;
   rateLimitMax: number;
   dbUrl: string;
+  dbPoolMin: number;
+  dbPoolMax: number;
   redisUrl?: string;
   ollamaHost: string;
   webhookMaxRetries: number;
@@ -43,6 +45,8 @@ export function loadConfig(): ApiConfig {
     rateLimitWindowMs: envInt('RATE_LIMIT_WINDOW_MS', 60000),
     rateLimitMax: envInt('RATE_LIMIT_MAX', 100),
     dbUrl: process.env.DATABASE_URL || 'postgresql://localhost:5432/kyc_vault',
+    dbPoolMin: envInt('DB_POOL_MIN', 5),
+    dbPoolMax: envInt('DB_POOL_MAX', 20),
     redisUrl: process.env.REDIS_URL || undefined,
     ollamaHost: process.env.OLLAMA_HOST || 'http://localhost:11434',
     webhookMaxRetries: envInt('WEBHOOK_MAX_RETRIES', 5),

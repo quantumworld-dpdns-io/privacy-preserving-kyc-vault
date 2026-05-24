@@ -58,9 +58,9 @@ curl -X GET https://api.kyc-vault.com/v1/credentials \
 |-------------|---------------|----------|
 | 17(1)(a) — Data no longer necessary | Credential expires automatically; configurable TTL | `VerifiableCredential.is_expired()` |
 | 17(1)(b) — Withdrawal of consent | Consent revocation triggers credential revocation | `PlatformConfig.consent_required` |
-| 17(1)(c) — Objection to processing | Subject can object via platform; triggers review workflow | — |
+| 17(1)(c) — Objection to processing | Subject can object via platform; triggers review workflow | `crates/core/src/kyc/workflow.rs:150` |
 | 17(1)(d) — Unlawful processing | Audit log review detects unauthorized processing | `docs/runbooks/key-compromise.md` |
-| 17(2) — Publicly disseminated data | N/A (credentials are not publicly disseminated) | — |
+| 17(2) — Publicly disseminated data | N/A (credentials are not publicly disseminated) | `docs/ARCHITECTURE.md:12` |
 | 17(3) — Exceptions (legal obligation) | Retention holds for legal/regulatory obligations | `docs/compliance/retention-policy.md` |
 
 Erasure API:
@@ -96,7 +96,11 @@ curl -X GET https://api.kyc-vault.com/v1/credentials/550e8400-e29b-41d4-a716-446
 #   "credentialSubject": {
 #     "id": "did:kyc:subject:def456"
 #   },
-#   "proof": { ... }
+#   "proof": {
+#     "type": "NoirProof",
+#     "proofValue": "0x1a2b3c4d...",
+#     "publicInputs": ["0x5e6f7g8h..."]
+#   }
 # }
 ```
 
@@ -152,7 +156,7 @@ Platform Registration → DPA Acceptance → Consent Token Issuance → Processi
 | 32(1)(d) — Regular testing of effectiveness | DR testing schedule, chaos engineering, weekly backup restore tests | `docs/runbooks/disaster-recovery.md:369` |
 | 32(2) — Risk-appropriate security level | 9-layer defense-in-depth architecture | `docs/ARCHITECTURE.md:108` |
 | 32(3) — Adherence to code of conduct | NIST FIPS 203/204/205 standards | `docs/SECURITY.md:8` |
-| 32(4) — Controller/processor verification | SOC 2 Type II, external penetration tests | — |
+| 32(4) — Controller/processor verification | SOC 2 Type II, external penetration tests | `docs/compliance/soc2-controls.md:144` |
 
 ## Breach Notification Procedure (Arts. 33-34)
 

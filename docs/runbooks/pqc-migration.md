@@ -112,8 +112,8 @@ curl -s -X POST https://api.kyc-vault.com/v1/keys/encapsulate \
 
 # Response should contain both classical and PQC ciphertexts:
 # {
-#   "kem_ciphertext_classical": "base64...",
-#   "kem_ciphertext_pqc": "base64...",
+#   "kem_ciphertext_classical": "dGhpcyBpcyBhIHJlYWxpc3RpYyBjbGFzc2ljYWwga2VtIGNpcGhlcnRleHQ=",
+#   "kem_ciphertext_pqc": "YW5kIHRoaXMgaXMgYSByZWFsaXN0aWMgcHFjIGtlbSBjaXBoZXJ0ZXh0IHdpdGggbXVjaCBtb3JlIGVudHJvcHk=",
 #   "kem_algorithm": "X25519+ML-KEM-768"
 # }
 ```

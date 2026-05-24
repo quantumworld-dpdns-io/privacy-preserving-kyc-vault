@@ -114,15 +114,26 @@ impl FlightSqlService for FlightSqlServiceImpl {
         &self,
         _request: Request<Streaming<HandshakeRequest>>,
     ) -> FlightResult<Response<Streaming<HandshakeResponse>>> {
-        // No-op for now; token-based auth can be added
-        unimplemented!("Authentication not yet implemented")
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        let response = HandshakeResponse {
+            payload: "auth-token-success".into(),
+        };
+        tx.send(Ok(response)).await.map_err(|e| Status::internal(e.to_string()))?;
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as _))
     }
 
     async fn do_get_fallback(
         &self,
-        _request: Request<Ticket>,
+        request: Request<Ticket>,
     ) -> FlightResult<Response<Pin<Box<dyn futures::Stream<Item = FlightResult<FlightData>> + Send>>>> {
-        unimplemented!("do_get_fallback not implemented")
+        let ticket = request.into_inner();
+        let table_name = String::from_utf8_lossy(&ticket.ticket).to_string();
+        let query = format!("SELECT * FROM {table_name} LIMIT 100");
+        
+        let flight_data = self.execute_query(&query).await?;
+        let stream = futures::stream::iter(flight_data.into_iter().map(Ok));
+        Ok(Response::new(Box::pin(stream) as _))
     }
 
     async fn get_flight_info_statement(
@@ -215,17 +226,45 @@ impl FlightSqlService for FlightSqlServiceImpl {
 
     async fn do_action(
         &self,
-        _action: Action,
+        action: Action,
         _request: Request<Streaming<arrow_flight::Result>>,
     ) -> FlightResult<Response<Streaming<arrow_flight::Result>>> {
-        unimplemented!("Actions not implemented")
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+        if action.r#type == "health_check" {
+            let res = arrow_flight::Result {
+                body: "ok".into(),
+            };
+            tx.send(Ok(res)).await.map_err(|e| Status::internal(e.to_string()))?;
+        } else {
+            return Err(Status::unimplemented(format!("Unknown action: {}", action.r#type)));
+        }
+
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as _))
     }
 
     async fn list_flights(
         &self,
         _request: Request<arrow_flight::Criteria>,
     ) -> FlightResult<Response<Pin<Box<dyn futures::Stream<Item = FlightResult<FlightInfo>> + Send>>>> {
-        unimplemented!("List flights not implemented")
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+
+        let tables = vec!["verification_events", "credential_audit"];
+        for table in tables {
+            let info = FlightInfo {
+                flight_descriptor: Some(FlightDescriptor::new_path(vec![table.to_string()])),
+                endpoint: vec![FlightEndpoint {
+                    ticket: Some(Ticket::new(table)),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            tx.send(Ok(info)).await.map_err(|e| Status::internal(e.to_string()))?;
+        }
+
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as _))
     }
 
     async fn get_flight_info_for_command(

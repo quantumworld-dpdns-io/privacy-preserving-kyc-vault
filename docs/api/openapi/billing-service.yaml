@@ -1,0 +1,59 @@
+openapi: 3.0.3
+info:
+  title: Billing Service API
+  description: API for usage metering and invoicing.
+  version: 1.0.0
+servers:
+  - url: https://api.kyc-vault.com/v1/billing
+paths:
+  /usage:
+    post:
+      summary: Record usage metering data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerId:
+                  type: string
+                metric:
+                  type: string
+                value:
+                  type: number
+      responses:
+        '202':
+          description: Accepted
+  /invoices:
+    post:
+      summary: Generate invoice
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoiceId:
+                    type: string
+                  amount:
+                    type: number
+  /credits:
+    post:
+      summary: Apply credits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Success

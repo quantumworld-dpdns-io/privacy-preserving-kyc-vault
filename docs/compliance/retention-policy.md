@@ -317,7 +317,7 @@ For GDPR Article 17 (Right to Erasure) requests, a confirmation report is genera
     {"category": "audit_logs", "reason": "legal_obligation_7yr_retention"},
     {"category": "fraud_risk_assessments", "reason": "aml_compliance"}
   ],
-  "verification_hash": "sha256:abc123def456..."
+  "verification_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }
 ```
 

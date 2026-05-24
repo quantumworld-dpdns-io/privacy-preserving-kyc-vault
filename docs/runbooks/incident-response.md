@@ -188,7 +188,7 @@ logcli query '{namespace="kyc-vault"} |= "550e8400-e29b-41d4-a716-446655440001"'
 | Resource | OOM/CPU throttle | `kubectl set resources deployment -n kyc-vault kyc-orchestrator --limits=cpu=4,memory=8Gi` |
 | Data | Corrupted record | Restore from backup: `bash scripts/backup/restore.sh --backup-file=s3://kyc-vault-backups/latest.sql.gz` |
 | Crypto | Failed proof verification | Roll ZKP circuit params: `just zkp-rollback` |
-| PQC | ML-KEM key mismatch | Switch to hybrid mode: `curl -X POST .../config -d '{"pqc":"hybrid"}'` |
+| PQC | ML-KEM key mismatch | Switch to hybrid mode: `curl -X POST https://api-gateway.kyc-vault.internal/v1/config -d '{"pqc":"hybrid"}'` |
 
 ### Verify Fix
 

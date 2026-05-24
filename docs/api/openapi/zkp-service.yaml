@@ -1,0 +1,74 @@
+openapi: 3.0.3
+info:
+  title: ZKP Service API
+  description: API for Zero-Knowledge Proof generation and verification.
+  version: 1.0.0
+servers:
+  - url: https://api.kyc-vault.com/v1/zkp
+paths:
+  /prove:
+    post:
+      summary: Generate a Zero-Knowledge Proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProveRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProveResponse'
+  /verify:
+    post:
+      summary: Verify a Zero-Knowledge Proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResponse'
+components:
+  schemas:
+    ProveRequest:
+      type: object
+      properties:
+        circuitId:
+          type: string
+        inputs:
+          type: object
+    ProveResponse:
+      type: object
+      properties:
+        proof:
+          type: string
+        publicInputs:
+          type: array
+          items:
+            type: string
+    VerifyRequest:
+      type: object
+      properties:
+        circuitId:
+          type: string
+        proof:
+          type: string
+        publicInputs:
+          type: array
+          items:
+            type: string
+    VerifyResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean

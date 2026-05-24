@@ -165,7 +165,8 @@ Classification is applied via schema attributes:
 SchemaAttribute {
     name: "document_image".into(),
     sensitivity: Some(SensitivityLevel::Critical),
-    // ...
+    classification: DataClassification::L4,
+    retention: Some(Duration::from_days(90)),
 }
 ```
 

@@ -98,7 +98,9 @@ pub struct VerifiableCredential {
 
 impl VerifiableCredential {
     pub fn is_expired(&self) -> bool {
-        // ...
+        self.expiration_date
+            .map(|date| date < Utc::now())
+            .unwrap_or(false)
     }
 }
 ```
