@@ -1,84 +1,216 @@
-resource "kubernetes_namespace" "weaviate" {
+# Weaviate Module (Deployed on EKS via Helm)
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.0"
+    }
+  }
+}
+
+variable "release_name" {
+  description = "Helm release name"
+  type        = string
+  default     = "weaviate"
+}
+
+variable "namespace" {
+  description = "Kubernetes namespace"
+  type        = string
+  default     = "weaviate"
+}
+
+variable "replicas" {
+  description = "Number of Weaviate replicas"
+  type        = number
+  default     = 1
+}
+
+variable "persistence_enabled" {
+  description = "Enable persistence"
+  type        = bool
+  default     = true
+}
+
+variable "persistence_size" {
+  description = "Persistence volume size"
+  type        = string
+  default     = "20Gi"
+}
+
+variable "storage_class" {
+  description = "Storage class for persistence"
+  type        = string
+  default     = "gp2"
+}
+
+variable "resources" {
+  description = "Resource requests and limits"
+  type        = any
+  default     = {
+    limits = {
+      cpu    = "2"
+      memory = "4Gi"
+    }
+    requests = {
+      cpu    = "500m"
+      memory = "2Gi"
+    }
+  }
+}
+
+variable "service_type" {
+  description = "Kubernetes service type"
+  type        = string
+  default     = "ClusterIP"
+}
+
+variable "image" {
+  description = "Weaviate image"
+  type        = string
+  default     = "semitechnologies/weaviate:1.20.0"
+}
+
+variable "modules" {
+  description = "Enabled Weaviate modules"
+  type        = list(string)
+  default     = []
+}
+
+variable "backup_enabled" {
+  description = "Enable backup functionality"
+  type        = bool
+  default     = false
+}
+
+variable "authentication_enabled" {
+  description = "Enable authentication"
+  type        = bool
+  default     = false
+}
+
+variable "anonymous_access_enabled" {
+  description = "Enable anonymous access"
+  type        = bool
+  default     = true
+}
+
+# Kubernetes namespace
+resource "kubernetes_namespace" "this" {
   metadata {
     name = var.namespace
-    labels = {
-      name = var.namespace
-    }
   }
 }
 
-resource "kubernetes_persistent_volume_claim" "weaviate" {
-  metadata {
-    name      = "${var.name_prefix}-weaviate-data"
-    namespace = kubernetes_namespace.weaviate.metadata[0].name
-  }
-  spec {
-    access_modes = ["ReadWriteOnce"]
-    resources {
-      requests = {
-        storage = var.storage_size
-      }
-    }
-    storage_class_name = var.storage_class_name
-  }
-}
-
-resource "helm_release" "weaviate" {
-  name       = "${var.name_prefix}-weaviate"
-  repository = "https://weaviate.github.io/weaviate-helm"
+# Helm release for Weaviate
+resource "helm_release" "this" {
+  name       = var.release_name
+  namespace  = kubernetes_namespace.this.metadata[0].name
+  repository = "https://helm.weaviate.io"
   chart      = "weaviate"
-  version    = var.helm_chart_version
-  namespace  = kubernetes_namespace.weaviate.metadata[0].name
+  version    = "0.3.0"
 
-  values = [
-    <<-EOF
-replicaCount: ${var.replica_count}
+  set {
+    name  = "replicaCount"
+    value = var.replicas
+  }
 
-image:
-  repository: semitechnologies/weaviate
-  tag: ${var.weaviate_version}
-  pullPolicy: IfNotPresent
+  set {
+    name  = "persistence.enabled"
+    value = var.persistence_enabled
+  }
 
-service:
-  type: ClusterIP
-  port: 8080
-  grpcPort: 50051
+  set {
+    name  = "persistence.size"
+    value = var.persistence_size
+  }
 
-persistence:
-  enabled: true
-  existingClaim: ${kubernetes_persistent_volume_claim.weaviate.metadata[0].name}
+  set {
+    name  = "persistence.storageClass"
+    value = var.storage_class
+  }
 
-resources:
-  requests:
-    memory: "${var.memory_request}"
-    cpu: "${var.cpu_request}"
-  limits:
-    memory: "${var.memory_limit}"
-    cpu: "${var.cpu_limit}"
+  set {
+    name  = "service.type"
+    value = var.service_type
+  }
 
-env:
-  AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "${var.anonymous_access}"
-  DEFAULT_VECTORIZER_MODULE: "${var.vectorizer_module}"
-  ENABLE_MODULES: "${var.enabled_modules}"
-  CLUSTER_HOSTNAME: "${var.name_prefix}-weaviate"
-  PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
-  ${var.azure_openai_api_key != "" ? "AZURE_OPENAI_API_KEY: \"${var.azure_openai_api_key}\"" : ""}
-  ${var.openai_api_key != "" ? "OPENAI_API_KEY: \"${var.openai_api_key}\"" : ""}
+  set {
+    name  = "image.tag"
+    value = var.image
+  }
 
-livenessProbe:
-  initialDelaySeconds: 60
-  periodSeconds: 10
+  # Set resources
+  set {
+    name  = "resources.limits.cpu"
+    value = var.resources.limits.cpu
+  }
 
-readinessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 5
+  set {
+    name  = "resources.limits.memory"
+    value = var.resources.limits.memory
+  }
 
-nodeSelector: ${jsonencode(var.node_selector)}
-tolerations: ${jsonencode(var.tolerations)}
-EOF
-  ]
+  set {
+    name  = "resources.requests.cpu"
+    value = var.resources.requests.cpu
+  }
+
+  set {
+    name  = "resources.requests.memory"
+    value = var.resources.requests.memory
+  }
+
+  # Set modules
+  dynamic "set" {
+    for_each = var.modules
+    content {
+      name  = "modules"
+      value = set.value
+    }
+  }
+
+  # Set authentication
+  set {
+    name  = "authentication.enabled"
+    value = var.authentication_enabled
+  }
+
+  set {
+    name  = "anonymousAccess.enabled"
+    value = var.anonymous_access_enabled
+  }
+
+  # Backup configuration
+  dynamic "set" {
+    for_each = var.backup_enabled ? [1] : []
+    content {
+      name  = "backup.enabled"
+      value = "true"
+    }
+  }
 
   depends_on = [
-    kubernetes_persistent_volume_claim.weaviate,
+    kubernetes_namespace.this
   ]
+}
+
+output "namespace" {
+  description = "Kubernetes namespace"
+  value       = kubernetes_namespace.this.metadata[0].name
+}
+
+output "service_name" {
+  description = "Weaviate service name"
+  value       = "${var.release_name}-weaviate"
+}
+
+output "grpc_service_name" {
+  description = "Weaviate GRPC service name"
+  value       = "${var.release_name}-weaviate-grpc"
 }
