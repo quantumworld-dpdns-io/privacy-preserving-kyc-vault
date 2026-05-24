@@ -1,0 +1,199 @@
+{
+  "title": "ZKP Engine Performance",
+  "uid": "zkp-engine",
+  "version": 1,
+  "tags": ["kyc-vault", "zkp", "performance"],
+  "schemaVersion": 39,
+  "timezone": "utc",
+  "editable": true,
+  "panels": [
+    {
+      "title": "Active Proof Sessions",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "sum(zkp_active_sessions)",
+        "legendFormat": "Active"
+      }]
+    },
+    {
+      "title": "Proofs Generated (Total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "expr": "sum(zkp_proofs_generated_total)",
+        "legendFormat": "Total Proofs"
+      }]
+    },
+    {
+      "title": "Average Proof Generation Time",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "avg(zkp_proof_generation_duration_seconds)",
+        "legendFormat": "Avg Time"
+      }]
+    },
+    {
+      "title": "Verification Latency (p95)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(zkp_verification_duration_seconds_bucket[5m])) by (le))",
+        "legendFormat": "p95"
+      }]
+    },
+    {
+      "title": "Proof Generation Time Distribution",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(zkp_proof_generation_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(zkp_proof_generation_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(zkp_proof_generation_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "title": "Proof Verification Time Distribution",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(zkp_verification_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(zkp_verification_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(zkp_verification_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "title": "Circuit Usage Distribution",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 20 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "targets": [{
+        "expr": "sum(zkp_proofs_generated_total) by (circuit_type)",
+        "legendFormat": "{{circuit_type}}"
+      }]
+    },
+    {
+      "title": "Proof Size",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 20 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [{
+        "expr": "avg(zkp_proof_size_bytes) by (circuit_type)",
+        "legendFormat": "{{circuit_type}}"
+      }]
+    },
+    {
+      "title": "Cache Hit Ratio",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [{
+        "expr": "rate(zkp_cache_hits_total[5m]) / (rate(zkp_cache_hits_total[5m]) + rate(zkp_cache_misses_total[5m])) * 100",
+        "legendFormat": "Cache Hit %"
+      }]
+    },
+    {
+      "title": "Memory Usage by Circuit",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 28 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [{
+        "expr": "zkp_circuit_memory_bytes",
+        "legendFormat": "{{circuit}}"
+      }]
+    }
+  ]
+}
