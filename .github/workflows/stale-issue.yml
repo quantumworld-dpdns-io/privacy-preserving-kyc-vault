@@ -1,0 +1,75 @@
+name: Mark Stale Issues and PRs
+
+on:
+  schedule:
+    - cron: "0 8 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      days_before_stale:
+        description: "Days before marking stale"
+        default: "60"
+        type: string
+      days_before_close:
+        description: "Days after stale before closing"
+        default: "14"
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Process Stale Items
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+          stale-issue-message: |
+            This issue has been automatically marked as stale because it has not had recent activity.
+            It will be closed if no further activity occurs within **${{ github.event.inputs.days_before_close || 14 }} days**.
+            Thank you for your contributions.
+          stale-pr-message: |
+            This PR has been automatically marked as stale because it has not had recent activity.
+            It will be closed if no further activity occurs within **${{ github.event.inputs.days_before_close || 14 }} days**.
+            Please review and update if still relevant.
+          close-issue-message: |
+            This issue was automatically closed after being stale with no activity.
+            If this is still relevant, please reopen or create a new issue.
+          close-pr-message: |
+            This PR was automatically closed after being stale with no activity.
+            Please reopen if you'd like to continue working on it.
+
+          days-before-stale: ${{ github.event.inputs.days_before_stale || 60 }}
+          days-before-close: ${{ github.event.inputs.days_before_close || 14 }}
+
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: |
+            pinned,
+            security,
+            bug,
+            in-progress,
+            needs-discussion,
+            epic,
+            never-stale
+          exempt-pr-labels: |
+            pinned,
+            security,
+            dependencies,
+            in-progress,
+            never-stale,
+            release
+
+          operations-per-run: 100
+          remove-stale-when-updated: true
+          delete-branch: true
+          ascending: true
+
+      - name: Log stale summary
+        run: |
+          echo "Stale check completed at $(date)"
+          echo "Configured: ${{ github.event.inputs.days_before_stale || 60 }}d stale → ${{ github.event.inputs.days_before_close || 14 }}d close"
