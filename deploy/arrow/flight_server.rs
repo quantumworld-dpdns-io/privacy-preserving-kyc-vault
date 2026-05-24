@@ -114,8 +114,13 @@ impl FlightSqlService for FlightSqlServiceImpl {
         &self,
         _request: Request<Streaming<HandshakeRequest>>,
     ) -> FlightResult<Response<Streaming<HandshakeResponse>>> {
-        // No-op for now; token-based auth can be added
-        unimplemented!("Authentication not yet implemented")
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        let response = HandshakeResponse {
+            payload: "auth-token-success".into(),
+        };
+        tx.send(Ok(response)).await.map_err(|e| Status::internal(e.to_string()))?;
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as _))
     }
 
     async fn do_get_fallback(
