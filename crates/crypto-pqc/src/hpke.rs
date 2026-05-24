@@ -68,15 +68,16 @@ impl HPKE {
     }
 
     fn x25519_dh(secret_key: &[u8; 32], public_key_bytes: &[u8]) -> Result<[u8; 32], String> {
-        let mut clamped = *secret_key;
+        let scalar = Scalar::from_bytes_mod_order(*secret_key);
+        let mut clamped = scalar.to_bytes();
         clamped[0] &= 248;
         clamped[31] &= 127;
         clamped[31] |= 64;
-        let scalar = Scalar::from_bytes_mod_order(clamped);
+        let clamped_scalar = Scalar::from_bytes_mod_order(clamped);
         let pub_bytes: [u8; 32] =
             <[u8; 32]>::try_from(public_key_bytes).map_err(|_| "Invalid public key length")?;
         let point = MontgomeryPoint(pub_bytes);
-        let shared_point = scalar * point;
+        let shared_point = clamped_scalar * point;
         Ok(shared_point.to_bytes())
     }
 }
@@ -85,12 +86,13 @@ pub fn generate_keypair() -> ([u8; 32], PublicKey) {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     let scalar = Scalar::from_bytes_mod_order(bytes);
+    let stored = scalar.to_bytes();
     let mut base_bytes = [0u8; 32];
     base_bytes[0] = 9;
     let basepoint = MontgomeryPoint(base_bytes);
     let public_point = scalar * basepoint;
     let public = PublicKey::from(public_point.to_bytes());
-    (bytes, public)
+    (stored, public)
 }
 
 #[cfg(test)]
