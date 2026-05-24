@@ -99,8 +99,7 @@ pub fn generate_keypair() -> ([u8; 32], PublicKey) {
 mod tests {
     use super::*;
 
-    fn hex_arr(s: &str) -> [u8; 32] {
-        let s = s.as_bytes();
+    fn hex_arr(s: &[u8]) -> [u8; 32] {
         let mut out = [0u8; 32];
         for i in 0..32 {
             let hi = (s[i * 2] as char).to_digit(16).unwrap() as u8;
