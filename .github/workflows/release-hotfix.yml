@@ -1,0 +1,90 @@
+name: Release Hotfix
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Hotfix version (e.g. 2.0.1)"
+        required: true
+        type: string
+      base_branch:
+        description: "Base branch to hotfix"
+        required: true
+        default: main
+        type: string
+      commit_sha:
+        description: "Commit SHA with the fix (optional)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  hotfix:
+    name: Create Hotfix Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.base_branch }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Create hotfix branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="hotfix/v${{ github.event.inputs.version }}"
+          git checkout -b "$BRANCH"
+
+      - name: Cherry-pick fix commit
+        if: github.event.inputs.commit_sha != ''
+        run: |
+          git cherry-pick ${{ github.event.inputs.commit_sha }} || {
+            echo "Cherry-pick failed. Resolve conflicts manually."
+            exit 1
+          }
+
+      - name: Bump version
+        run: |
+          npm version ${{ github.event.inputs.version }} --no-git-tag-version
+          echo "${{ github.event.inputs.version }}" > VERSION
+
+      - name: Commit and push
+        run: |
+          git add package.json VERSION
+          git commit -m "chore(release): hotfix v${{ github.event.inputs.version }}"
+          git push origin "hotfix/v${{ github.event.inputs.version }}"
+
+      - name: Create PR to base branch
+        run: |
+          gh pr create \
+            --base ${{ github.event.inputs.base_branch }} \
+            --head "hotfix/v${{ github.event.inputs.version }}" \
+            --title "hotfix: v${{ github.event.inputs.version }}" \
+            --body "## Hotfix v${{ github.event.inputs.version }}\n\nThis hotfix addresses critical issues in the current release.\n\n### Changes\n- $(git log origin/${{ github.event.inputs.base_branch }}..HEAD --oneline | sed 's/^/- /')\n\n### Checklist\n- [ ] Fix verified\n- [ ] Tests pass\n- [ ] Reviewed by team\n\n> **Note**: This is a hotfix — please review and merge urgently." \
+            --label hotfix,release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  tag:
+    name: Tag Hotfix Release
+    runs-on: ubuntu-latest
+    needs: hotfix
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/v${{ github.event.inputs.version }}
+
+      - name: Tag and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ github.event.inputs.version }}"
+          git push origin "v${{ github.event.inputs.version }}"
