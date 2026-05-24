@@ -1,0 +1,3 @@
+name: privacy-preserving-kyc-vault
+runtime: typescript
+description: Infrastructure as Code for Privacy Preserving KYC Vault
