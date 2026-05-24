@@ -1,0 +1,92 @@
+name: Backport PRs
+
+on:
+  pull_request_target:
+    types: [labeled, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  backport:
+    name: Backport PR
+    if: |
+      github.event.label.name == 'backport' ||
+      (github.event.action == 'closed' && github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'backport'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine backport target branches
+        id: targets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+            const title = context.payload.pull_request.title;
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+
+            let targets = [];
+
+            const versionMatch = prBody.match(/backport\s+(?:to\s+)?(?:release\/)?v?([\d.]+)/i);
+            const labelMatch = labels.find(l => /^backport\s+v?[\d.]+$/i.test(l));
+            const labelMatchFull = labels.find(l => /^backport\s+(?:to\s+)?release\//i.test(l));
+
+            if (versionMatch) {
+              targets.push(`release/v${versionMatch[1]}`);
+            }
+            if (labelMatch) {
+              const v = labelMatch.match(/[\d.]+/)[0];
+              targets.push(`release/v${v}`);
+            }
+            if (labelMatchFull) {
+              targets.push(labelMatchFull.replace(/^backport\s+(?:to\s+)?/i, ''));
+            }
+
+            targets = [...new Set(targets)];
+
+            if (targets.length === 0) {
+              const base = context.payload.pull_request.base.ref;
+              if (base === 'main' || base === 'master') {
+                targets = ['release/v1.x', 'release/v2.x'];
+              } else {
+                console.log('Could not determine backport target.');
+              }
+            }
+
+            core.setOutput('targets', JSON.stringify(targets));
+            console.log('Backport targets:', targets);
+
+      - name: Create backport PRs
+        if: steps.targets.outputs.targets != '[]'
+        run: |
+          TARGETS='${{ steps.targets.outputs.targets }}'
+          PR_NUM=${{ github.event.pull_request.number }}
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+
+          echo "$TARGETS" | jq -r '.[]' | while read -r TARGET; do
+            git fetch origin "$TARGET" || { echo "Branch $TARGET does not exist, skipping"; continue; }
+
+            BP_BRANCH="backport/${PR_NUM}/${TARGET}"
+            git checkout -b "$BP_BRANCH" "origin/$TARGET"
+            git cherry-pick -x "origin/main~1" || {
+              echo "Cherry-pick conflict, creating PR anyway..."
+            }
+
+            git push origin "$BP_BRANCH"
+
+            gh pr create \
+              --base "$TARGET" \
+              --head "$BP_BRANCH" \
+              --title "backport: ${PR_TITLE} (to ${TARGET})" \
+              --body "Backport of #${PR_NUM} to \`${TARGET}\`.\n\nOriginal PR: #${PR_NUM}\n\n$PR_BODY" \
+              --label backport
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
