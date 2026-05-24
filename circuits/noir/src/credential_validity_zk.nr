@@ -55,16 +55,18 @@ fn verify_issuer_sig(cred_hash: Field, expiry: Field, issuer: Field, sig: [Field
 
 #[test]
 fn test_credential_validity_valid() {
-    let cred_hash: Field = 55555;
-    let issuer: Field = 888;
-    let expiry: Field = 100;
+    let cred_hash: Field = 100;
+    let expiry: Field = 200;
+    let msg = compute_credential_message(cred_hash, expiry);
+    let r: Field = 1;
+    let s: Field = 795;
+    // recovered = (msg + 3*1 + 11*795) % 7919 = (msg + 3 + 8745) % 7919
+    // 8745 - 7919 = 826, so recovered = (msg + 829) % 7919
+    // msg = (100*1000 + 200) % 7919 = 100200 % 7919 = 5172
+    // recovered = (5172 + 829) % 7919 = 6001
+    let issuer: Field = 6001;
     let current: Field = 50;
     let blinding: Field = 77;
-    let msg = compute_credential_message(cred_hash, expiry);
-    let r: Field = 5;
-    let s: Field = 7;
-    let recovered = (msg + r * 3 + s * 11) % 7919;
-    constrain recovered == issuer;
     let commitment = commit_credential(cred_hash, blinding);
     let result = main(cred_hash, issuer, r, s, expiry, current, 0, commitment, blinding);
     assert(result);
@@ -72,16 +74,16 @@ fn test_credential_validity_valid() {
 
 #[test]
 fn test_credential_validity_expired() {
-    let cred_hash: Field = 55555;
-    let issuer: Field = 888;
+    let cred_hash: Field = 100;
     let expiry: Field = 50;
     let current: Field = 100;
-    let blinding: Field = 77;
     let msg = compute_credential_message(cred_hash, expiry);
-    let r: Field = 5;
-    let s: Field = 7;
-    let recovered = (msg + r * 3 + s * 11) % 7919;
-    constrain recovered == issuer;
+    let r: Field = 1;
+    let s: Field = 179;
+    // msg = (100*1000 + 50) % 7919 = 100050 % 7919 = 5022
+    // recovered = (5022 + 3 + 11*179) % 7919 = (5022 + 3 + 1969) % 7919 = 6994 % 7919 = 6994
+    let issuer: Field = 6994;
+    let blinding: Field = 77;
     let commitment = commit_credential(cred_hash, blinding);
     let result = main(cred_hash, issuer, r, s, expiry, current, 0, commitment, blinding);
     assert(result == false);
@@ -89,14 +91,14 @@ fn test_credential_validity_expired() {
 
 #[test]
 fn test_credential_validity_revoked() {
-    let cred_hash: Field = 55555;
-    let issuer: Field = 888;
-    let expiry: Field = 100;
+    let cred_hash: Field = 100;
+    let expiry: Field = 200;
+    let msg = compute_credential_message(cred_hash, expiry);
+    let r: Field = 1;
+    let s: Field = 795;
+    let issuer: Field = 6001;
     let current: Field = 50;
     let blinding: Field = 77;
-    let msg = compute_credential_message(cred_hash, expiry);
-    let r: Field = 5;
-    let s: Field = 7;
     let commitment = commit_credential(cred_hash, blinding);
     let result = main(cred_hash, issuer, r, s, expiry, current, 1, commitment, blinding);
     assert(result == false);
@@ -119,10 +121,9 @@ fn test_is_not_revoked() {
 fn test_verify_issuer_sig() {
     let cred_hash: Field = 100;
     let expiry: Field = 200;
-    let msg = compute_credential_message(cred_hash, expiry);
-    let r: Field = 3;
-    let s: Field = 5;
-    let issuer = (msg + r * 3 + s * 11) % 7919;
+    let r: Field = 1;
+    let s: Field = 795;
+    let issuer: Field = 6001;
     assert(verify_issuer_sig(cred_hash, expiry, issuer, [r, s]));
     assert(!verify_issuer_sig(cred_hash, expiry, 999, [r, s]));
 }
