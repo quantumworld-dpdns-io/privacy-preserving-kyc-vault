@@ -9,6 +9,8 @@ export interface ApiConfig {
   rateLimitWindowMs: number;
   rateLimitMax: number;
   dbUrl: string;
+  dbPoolMin: number;
+  dbPoolMax: number;
   redisUrl?: string;
   ollamaHost: string;
   webhookMaxRetries: number;
