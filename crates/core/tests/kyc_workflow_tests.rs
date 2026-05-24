@@ -63,9 +63,9 @@ fn test_kyc_additional_info_flow() {
 fn test_kyc_expiry_after_approval() {
     let mut wf = make_workflow("wf-expire-1", "did:example:user5");
 
-    wf.transition(KYCState::DocumentsSubmitted, "did:example:user5".into(), "").into()).unwrap();
-    wf.transition(KYCState::UnderReview, "did:example:reviewer".into(), "").into()).unwrap();
-    wf.transition(KYCState::Approved, "did:example:reviewer".into(), "").into()).unwrap();
+    wf.transition(KYCState::DocumentsSubmitted, "did:example:user5".into(), "submitted".into()).unwrap();
+    wf.transition(KYCState::UnderReview, "did:example:reviewer".into(), "reviewing".into()).unwrap();
+    wf.transition(KYCState::Approved, "did:example:reviewer".into(), "approved".into()).unwrap();
     wf.transition(KYCState::Expired, "did:example:system".into(), "KYC expired".into()).unwrap();
 
     assert_eq!(wf.state, KYCState::Expired);
