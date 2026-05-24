@@ -77,7 +77,7 @@ mTLS: Required for gRPC and inter-service communication
 const DocumentSchema = z.object({
   documentId: z.string().uuid(),
   imageData: z.string().max(10_000_000),
-  documentType: z.enum(['passport', 'drivers_license', ...]),
+  documentType: z.enum(['passport', 'drivers_license', 'national_id', 'residence_permit', 'voter_id']),
 });
 ```
 
