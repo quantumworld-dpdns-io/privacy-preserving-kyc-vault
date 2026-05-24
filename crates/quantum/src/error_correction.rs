@@ -22,6 +22,53 @@ pub mod error_correction {
         CorrectionError,
     }
 
+    /// Steane's [[7,1,3]] quantum error correction code
+    pub struct SteaneCode;
+    
+    impl SteaneCode {
+        pub fn new() -> Self {
+            Self
+        }
+        
+        /// Encode a logical qubit into 7 physical qubits
+        /// |0_L> = (|0000000> + |1010101> + |0110011> + |1100110> + |0001111> + |1011010> + |0111100> + |1101001>)/sqrt(8)
+        /// |1_L> = (|1111111> + |0101010> + |1001100> + |0011001> + |1110000> + |0100101> + |1000011> + |0010110>)/sqrt(8)
+        pub fn encode_logical_zero(&self) -> [Complex64; 7] {
+            // Simplified representation - in practice would be a 7-qubit state
+            // Returning amplitudes for |0000000> and |1010101> components for simplicity
+            let mut state = [Complex64::new(0.0, 0.0); 7];
+            state[0] = Complex64::new(1.0 / 2.0.sqrt(), 0.0); // |0000000> component
+            state[1] = Complex64::new(1.0 / 2.0.sqrt(), 0.0); // |1010101> component
+            state
+        }
+        
+        pub fn encode_logical_one(&self) -> [Complex64; 7] {
+            // |1_L> state components
+            let mut state = [Complex64::new(0.0, 0.0); 7];
+            state[0] = Complex64::new(1.0 / 2.0.sqrt(), 0.0); // |1111111> component
+            state[1] = Complex64::new(1.0 / 2.0.sqrt(), 0.0); // |0101010> component
+            state
+        }
+        
+        /// Decode from 7 physical qubits to 1 logical qubit
+        pub fn decode(&self, _encoded: [Complex64; 7]) -> Result<bool, QuantumError> {
+            // Simplified decoding - in practice would involve syndrome measurement and correction
+            Ok(true) // Placeholder
+        }
+        
+        /// Correct errors using syndrome measurement
+        pub fn correct(&self, _mut encoded: [Complex64; 7], _syndrome: [bool; 3]) -> Result<[Complex64; 7], QuantumError> {
+            // Simplified error correction
+            Ok(encoded)
+        }
+        
+        /// Measure error syndromes
+        pub fn measure_syndrome(&self, _encoded: [Complex64; 7]) -> [bool; 3] {
+            // Steane code uses 3 syndrome bits for error detection
+            [false, false, false] // Placeholder - no error
+        }
+    }
+
     /// Three-qubit bit flip code
     pub struct BitFlipCode;
 
