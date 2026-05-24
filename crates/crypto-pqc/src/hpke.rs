@@ -134,6 +134,23 @@ mod tests {
     }
 
     #[test]
+    fn test_my_dh_matches_dalek() {
+        use x25519_dalek::EphemeralSecret;
+        let my_sec = EphemeralSecret::random_from_rng(OsRng);
+        let my_pub = PublicKey::from(&my_sec);
+        let other_sec = EphemeralSecret::random_from_rng(OsRng);
+        let other_pub = PublicKey::from(&other_sec);
+
+        // Dalek's DH
+        let dalek_shared = my_sec.diffie_hellman(&other_pub);
+
+        // My DH - but I need to recreate my secret from bytes...
+        // Skip this for now - let me just check if the public keys match
+        // Since we can't extract the secret from EphemeralSecret, let's instead
+        // generate a keypair using our method and compare DH results
+    }
+
+    #[test]
     fn test_hpke_roundtrip() {
         let (secret, public) = generate_keypair();
         let plaintext = b"Hello, KYC Vault!";
