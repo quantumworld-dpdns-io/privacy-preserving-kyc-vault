@@ -116,6 +116,17 @@ mod tests {
     }
 
     #[test]
+    fn test_dh_commutativity() {
+        let (a_sec, a_pub) = generate_keypair();
+        let (b_sec, b_pub) = generate_keypair();
+
+        let dh_a = HPKE::x25519_dh(&a_sec, b_pub.as_bytes()).unwrap();
+        let dh_b = HPKE::x25519_dh(&b_sec, a_pub.as_bytes()).unwrap();
+
+        assert_eq!(dh_a, dh_b, "DH should be commutative");
+    }
+
+    #[test]
     fn test_hpke_roundtrip() {
         let (secret, public) = generate_keypair();
         let plaintext = b"Hello, KYC Vault!";
