@@ -154,9 +154,9 @@ mod tests {
         let alice_bytes = [0x41u8; 32];
         let bob_bytes = [0x42u8; 32];
 
-        let a_sec = EphemeralSecret::random_from_rng(&mut FixedRng(alice_bytes, false));
+        let a_sec = EphemeralSecret::random_from_rng(&mut FixedRng(alice_bytes));
         let a_pub = PublicKey::from(&a_sec);
-        let b_sec = EphemeralSecret::random_from_rng(&mut FixedRng(bob_bytes, false));
+        let b_sec = EphemeralSecret::random_from_rng(&mut FixedRng(bob_bytes));
         let b_pub = PublicKey::from(&b_sec);
 
         let dh_dalek = a_sec.diffie_hellman(&b_pub);
