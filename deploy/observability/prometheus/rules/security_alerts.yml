@@ -1,0 +1,121 @@
+groups:
+  - name: security_incidents
+    interval: 15s
+    rules:
+      - alert: BruteForceLoginAttempts
+        expr: rate(login_attempts_total{status="failed"}[5m]) > 20
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Brute force login attempt detected"
+          description: "Failed login rate is {{ $value }}/s. Possible brute force attack."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/brute-force"
+
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(http_requests_total{status="401"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "401 errors at rate {{ $value }}/s."
+
+      - alert: ForbiddenAccessAttempts
+        expr: rate(http_requests_total{status="403"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "High rate of forbidden access attempts"
+          description: "403 errors at rate {{ $value }}/s."
+
+      - alert: ApiKeyCompromiseIndicator
+        expr: rate(api_key_failures_total[5m]) > rate(api_key_successes_total[5m]) * 0.5
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Possible API key compromise detected"
+          description: "API key failure rate is 50% of success rate. Key {{ $labels.key_id }} may be compromised."
+
+      - alert: SuspiciousIPBlocked
+        expr: rate(waf_blocked_requests_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "WAF blocking high volume of requests"
+          description: "WAF blocked {{ $value }} requests/s from source {{ $labels.source_ip }}."
+
+      - alert: TLSHandshakeFailures
+        expr: rate(tls_handshake_failures_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Elevated TLS handshake failures"
+          description: "TLS handshake failure rate is {{ $value }}/s. Possible MITM or protocol mismatch."
+
+      - alert: PrivilegeEscalationDetected
+        expr: rate(audit_privilege_escalation_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Privilege escalation event detected"
+          description: "Privilege escalation events at rate {{ $value }}/s. Immediate investigation required."
+
+      - alert: ExcessiveApiRateLimiting
+        expr: rate(api_rate_limit_exceeded_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Excessive API rate limiting triggered"
+          description: "Rate limit exceeded at {{ $value }} events/s. Possible DDoS or misconfigured client."
+
+      - alert: VaultUnsealStatusChange
+        expr: changes(vault_sealed[5m]) > 0
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Vault seal status changed"
+          description: "Vault node {{ $labels.instance }} seal status changed. Verify immediately."
+
+      - alert: ContainerPrivilegedMode
+        expr: kube_pod_container_info{container_id!=""} * on(container) group_left(container_security_context_privileged) container_security_context_privileged > 0
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Container running in privileged mode"
+          description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is running in privileged mode."
+
+      - alert: HostNetworkPod
+        expr: kube_pod_host_network > 0
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Pod using host network"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is using host network."
+
+      - alert: JWTIssuerMismatch
+        expr: rate(jwt_issuer_validation_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "JWT issuer validation failures detected"
+          description: "Tokens with invalid issuer at rate {{ $value }}/s. Possible token forgery."
