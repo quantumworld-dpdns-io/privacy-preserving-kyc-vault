@@ -110,7 +110,7 @@ kubectl create configmap -n kyc-vault revoked-keys \
 
 # Add compromised key fingerprints to blocklist
 kubectl edit configmap -n kyc-vault kyc-api-gateway-config
-# Add: BLOCKED_KEY_FINGERPRINTS: "sha256:abc..., sha256:def..."
+# Add: BLOCKED_KEY_FINGERPRINTS: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 ```
 
 ## Phase 2: Key Rotation (15-45 min)
