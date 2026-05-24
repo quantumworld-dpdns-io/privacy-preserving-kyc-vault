@@ -125,9 +125,15 @@ impl FlightSqlService for FlightSqlServiceImpl {
 
     async fn do_get_fallback(
         &self,
-        _request: Request<Ticket>,
+        request: Request<Ticket>,
     ) -> FlightResult<Response<Pin<Box<dyn futures::Stream<Item = FlightResult<FlightData>> + Send>>>> {
-        unimplemented!("do_get_fallback not implemented")
+        let ticket = request.into_inner();
+        let table_name = String::from_utf8_lossy(&ticket.ticket).to_string();
+        let query = format!("SELECT * FROM {table_name} LIMIT 100");
+        
+        let flight_data = self.execute_query(&query).await?;
+        let stream = futures::stream::iter(flight_data.into_iter().map(Ok));
+        Ok(Response::new(Box::pin(stream) as _))
     }
 
     async fn get_flight_info_statement(
