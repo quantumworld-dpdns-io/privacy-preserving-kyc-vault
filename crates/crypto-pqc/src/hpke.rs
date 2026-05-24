@@ -123,13 +123,13 @@ mod tests {
     #[test]
     fn test_dalek_commutativity() {
         use x25519_dalek::EphemeralSecret;
-        let a_secret = EphemeralSecret::random_from_rng(OsRng);
-        let a_pub = PublicKey::from(&a_secret);
-        let b_secret = EphemeralSecret::random_from_rng(OsRng);
-        let b_pub = PublicKey::from(&b_secret);
+        let a_sec = EphemeralSecret::random_from_rng(OsRng);
+        let a_pub = PublicKey::from(&a_sec);
+        let b_sec = EphemeralSecret::random_from_rng(OsRng);
+        let b_pub = PublicKey::from(&b_sec);
 
-        let dh_a = a_secret.diffie_hellman(&b_pub);
-        let dh_b = b_secret.diffie_hellman(&a_pub);
+        let dh_a = a_sec.diffie_hellman(&b_pub);
+        let dh_b = b_sec.diffie_hellman(&a_pub);
         assert_eq!(dh_a.as_bytes(), dh_b.as_bytes(), "dalek DH should be commutative");
     }
 
