@@ -2,208 +2,296 @@
 
 ## Overview
 
-This runbook defines the incident response lifecycle for the KYC platform. It covers detection, containment, eradication, recovery, and post-mortem phases for security and operational incidents.
+This runbook defines the end-to-end incident response lifecycle for the KYC Vault platform. Every incident follows the phases: Detection → Triage → Containment → Eradication → Recovery → Post-Mortem.
 
 ## Severity Classification
 
-| Severity | Definition | Response Time | Examples |
-|----------|-----------|---------------|----------|
-| SEV-1 | Complete service outage or data breach | 15 min | Loss of primary DB, unauthorized data access |
-| SEV-2 | Partial outage or degraded performance | 30 min | p99 > 5s, one AZ down |
-| SEV-3 | Minor disruption, no user impact | 4 hr | Single pod crash-loop, non-critical bug |
-| SEV-4 | Proactive maintenance or cosmetic issue | Next sprint | Dashboard label error, minor UI bug |
+| Severity | Definition | Response SLA | Examples |
+|----------|-----------|-------------|----------|
+| SEV-1 | Complete service outage, data breach, or data loss | 15 min notify, 4 hr resolve | Primary DB offline, unauthorized credential access |
+| SEV-2 | Partial outage or severe degradation | 30 min notify, 8 hr resolve | p99 latency >5s, single AZ down, ZKP proving failure |
+| SEV-3 | Minor disruption, no user-visible impact | 2 hr notify, 24 hr resolve | Single pod crash-loop, non-critical API bug |
+| SEV-4 | Proactive maintenance or cosmetic issue | Next business day | Dashboard label error, low-severity lint warning |
 
-## Communication Channels
-
-- **Slack**: #incidents (main), #incident-{ID} (dedicated channel)
-- **PagerDuty**: On-call rotation, routes by team
-- **Zoom**: Bridge created for SEV-1/2 incidents
-- **Status Page**: Update via opsgenie when user-facing impact
-- **Email**: Security incidents to security@company.com
-
-## Roles
+## Response Roles
 
 | Role | Responsibility |
 |------|---------------|
-| Incident Commander (IC) | Coordinates response, makes priority calls |
-| Scribe | Documents timeline, actions, decisions |
-| Technical Lead | Diagnoses root cause, drives fix |
-| Communications Lead | Internal/external status updates |
-| Security Lead | Forensic analysis, legal notification (if applicable) |
+| Incident Commander (IC) | Leads response, delegates tasks, makes priority calls |
+| Scribe | Records timeline, actions, decisions, communications |
+| Technical Lead | Diagnoses root cause, develops and tests fix |
+| Ops Lead | Executes containment and recovery runbook steps |
+| Security Lead | Forensics, evidence preservation, legal notification |
+| Communications Lead | Internal updates, customer status page, regulatory notices |
+
+---
 
 ## Phase 1: Detection
 
-### Sources
-- Prometheus alerts firing (CPU, memory, error rates, latency)
-- Loki log pattern alerts (panic, fatal, auth failure burst)
-- Grafana dashboard anomalies
-- PagerDuty escalation
-- Customer reports via support ticket
-- Security scan findings (Trivy, OPA Gatekeeper)
+### Alert Sources
+- **Prometheus Alertmanager**: Firing alerts for service health, error budgets, latency SLOs
+- **Loki Log Alerts**: Pattern-matched log surges (panic, fatal, auth failure, SQL injection)
+- **Grafana Anomaly Detection**: Deviation from baseline metrics
+- **PagerDuty**: Automated escalation from alertmanager
+- **External Monitoring**: Synthetic checks (Checkly/Pingdom) for API endpoints
+- **Customer Reports**: Support tickets indicating service issues
+- **Security Scanners**: Trivy, Semgrep, Tetragon eBPF policy violations
 
-### Initial Triage
+### Triage Checklist
+
 ```bash
-# Check overall cluster health
-kubectl get nodes
-kubectl get pods --all-namespaces | grep -v Running
+# Overall cluster health
+kubectl get nodes -o wide
+kubectl get pods --all-namespaces --field-selector status.phase!=Running
 
-# Check recent events
-kubectl get events --all-namespaces --sort-by='.lastTimestamp' | tail -50
+# Recent events
+kubectl get events --all-namespaces --sort-by='.lastTimestamp' | tail -30
 
-# Check alertmanager firing alerts
-curl -s localhost:9093/api/v1/alerts | jq '.data[] | select(.status=="firing")'
+# Alertmanager state
+curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | select(.status=="firing")'
 
-# Check recent deployments (may correlate with incident start)
-kubectl rollout history -n kyc deployment/api-server
+# Recent deployments (correlate with incident onset)
+kubectl rollout history -n kyc-vault deployment/kyc-api-gateway
+
+# Check if PQC/quantum/zkp component has recent change
+kubectl get configmap -n kyc-vault -l app.kubernetes.io/component=crypto -o yaml
 ```
 
-## Phase 2: Containment
+### Initial Assessment
+1. Is the incident security-related (breach, unauthorized access) or operational (outage, degradation)?
+2. What is the blast radius? Single service, AZ, or entire platform?
+3. Is there active user data exposure or loss of confidentiality?
+4. Note the detection timestamp for post-mortem timeline.
 
-### Immediate Actions
-1. Acknowledge incident in PagerDuty and post in #incidents
-2. Create dedicated Slack channel #incident-{ID}
-3. Assemble response team based on severity
-4. If security incident, isolate affected systems immediately
+---
 
-### Containment Procedures
+## Phase 2: Triage
 
-**API Server Degradation:**
+### Gather Information
+
 ```bash
-# Scale down non-critical traffic
-kubectl scale deployment -n kyc api-server --replicas=2
+# Service-specific diagnostics
+kubectl logs -n kyc-vault -l app.kubernetes.io/name=kyc-api-gateway --tail=200 --since=30m
+kubectl logs -n kyc-vault -l app.kubernetes.io/name=kyc-orchestrator --tail=200 --since=30m
 
-# Enable maintenance page if needed
-kubectl patch svc -n kyc api-server -p '{"spec":{"selector":{"maintenance":"true"}}}'
+# Check database connectivity
+kubectl exec -n kyc-vault deploy/kyc-orchestrator -- pg_isready -d $DATABASE_URL
 
-# Throttle or block specific IP ranges if under attack
-kubectl annotate ingress -n kyc api-ingress nginx.org/rate-limit="10r/s"
+# Check Redis
+kubectl exec -n kyc-vault deploy/kyc-orchestrator -- redis-cli -u $REDIS_URL ping
+
+# Check Kafka lag
+kubectl exec -n kyc-vault deploy/kyc-orchestrator -- \
+  kafka-consumer-groups --bootstrap-server $KAFKA_BROKERS \
+  --group kyc-orchestrator --describe
 ```
 
-**Database Incident:**
+### Classify Incident
+- **Operational**: Infrastructure failure, resource exhaustion, deployment regression
+- **Security**: Unauthorized access, data exfiltration, credential theft, crypto weaknesses
+- **Data**: Data corruption, loss, inconsistency across replicas
+- **PQC/ZKP**: Proof verification failures, circuit parameter mismatch, hybrid mode errors
+
+### Declare Severity
+IC declares severity level and opens incident bridge. PagerDuty acknowledges. Dedicated Slack channel `#incident-{ID}` created.
+
+---
+
+## Phase 3: Containment
+
+### General Containment Actions
+1. Acknowledge in PagerDuty and post initial status in #incidents
+2. Create #incident-{ID} Slack channel with automated Zoom bridge
+3. Assemble response team per severity
+4. For security incidents: isolate affected systems immediately (network quarantine)
+5. Enable maintenance page if user-facing impact
+
+### API/Gateway Containment
+
 ```bash
-# Failover to replica
-kubectl exec -n kyc postgres-primary-0 -- patronictl failover
-# Disable write connections to primary
-kubectl annotate svc -n kyc postgres-primary postgres/read-only="true"
+# Scale down to reduce blast radius
+kubectl scale deployment -n kyc-vault kyc-api-gateway --replicas=2
+
+# Enable maintenance page
+kubectl patch svc -n kyc-vault kyc-api-gateway -p \
+  '{"spec":{"selector":{"maintenance":"true"}}}'
+
+# Rate-limit aggressive clients
+kubectl annotate ingress -n kyc-vault kyc-api-ingress \
+  nginx.org/rate-limit="5r/s"
 ```
 
-**Security Breach:**
-```bash
-# Isolate compromised pods
-kubectl label pod -n kyc compromised-pod --overwrite network-policy=quarantine
+### Database Containment
 
-# Revoke and rotate credentials
+```bash
+# Promote standby if primary is failing
+patronictl -c /etc/patroni/patroni.yml failover --master kyc-vault-pg-primary --candidate kyc-vault-pg-standby
+
+# Switch DB to read-only to prevent corruption
+kubectl exec -n kyc-vault svc/kyc-postgres -- psql -c "ALTER SYSTEM SET default_transaction_read_only = on;"
+
+# Take pg_dump of current state for forensic preservation
+pg_dump -h $DB_HOST -U kycadmin -d kycdb --no-privileges --no-owner > /tmp/forensic_dump.sql
+```
+
+### Security Breach Containment
+
+```bash
+# Quarantine compromised pods
+kubectl label pod -n kyc-vault -l app.kubernetes.io/instance=kyc-orchestrator \
+  network-policy=quarantine --overwrite
+
+# Revoke and rotate all service credentials
 vault lease revoke -prefix database/creds/kyc-app
-vault write -f /auth/token/renew-self
+vault write -f /sys/leases/revoke-prefix auth/api-keys/creds/app
 
-# Snapshot affected volumes for forensic analysis
-kubectl delete pod -n kyc compromised-pod --grace-period=30
+# Take forensic volume snapshots (EBS)
+aws ec2 create-snapshot --volume-id vol-xxxx --description "forensic-$(date +%Y%m%d-%H%M%S)"
+
+# Block egress from affected namespace
+kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: quarantine-egress
+  namespace: kyc-vault
+spec:
+  podSelector: {matchLabels: {quarantine: "true"}}
+  policyTypes: [Egress]
+  egress: []
+EOF
 ```
 
-## Phase 3: Eradication
+---
 
-### Root Cause Analysis
-1. **Logs**: Query Loki for error/warning patterns around incident time:
-   ```
-   {app="api-server"} |= "error" |= "timeout"
-   {app="api-server"} |= "panic" |= "stacktrace"
-   ```
-2. **Metrics**: Check Grafana dashboards for anomaly window correlation
-3. **Deployment History**: Check recent config/version changes
-4. **Full Pod Logs**: `kubectl logs -n kyc --previous pod/restarted-pod`
+## Phase 4: Eradication
 
-### Fix Steps
-| Incident Type | Fix Action | Rollback Command |
-|--------------|-----------|------------------|
-| Bad deployment | Rollback to previous version | `kubectl rollout undo -n kyc deployment/api-server` |
-| Config error | Apply correct config | `kubectl apply -f corrected-config.yaml` |
-| Resource starvation | Scale up or adjust limits | `kubectl scale deployment -n kyc api-server --replicas=10` |
-| Security vulnerability | Patch and redeploy | `kubectl set image -n kyc deployment/api-server api-server=vuln-patched` |
+### Root Cause Analysis Tools
 
-### Verification
 ```bash
-# Confirm pods are healthy
-kubectl wait --for=condition=Ready -n kyc pod -l app=api-server --timeout=120s
+# Query Loki for error burst
+logcli query '{namespace="kyc-vault"} |= "error" |~ "panic|fatal|OOM|killed"' --since=2h
+
+# Trace specific request IDs
+logcli query '{namespace="kyc-vault"} |= "550e8400-e29b-41d4-a716-446655440001"'
+
+# Compare metrics before/after
+# Open Grafana: http://grafana.kyc-vault.com/d/service-health
+# Compare time range: [incident_start - 2h] vs [incident_end + 1h]
+```
+
+### Fix by Category
+
+| Category | Root Cause | Fix Action |
+|----------|-----------|------------|
+| Deployment | Bad rollout or config | `kubectl rollout undo deployment -n kyc-vault kyc-api-gateway --to-revision=N` |
+| Resource | OOM/CPU throttle | `kubectl set resources deployment -n kyc-vault kyc-orchestrator --limits=cpu=4,memory=8Gi` |
+| Data | Corrupted record | Restore from backup: `bash scripts/backup/restore.sh --backup-file=s3://kyc-vault-backups/latest.sql.gz` |
+| Crypto | Failed proof verification | Roll ZKP circuit params: `just zkp-rollback` |
+| PQC | ML-KEM key mismatch | Switch to hybrid mode: `curl -X POST .../config -d '{"pqc":"hybrid"}'` |
+
+### Verify Fix
+
+```bash
+# Wait for readiness
+kubectl wait --for=condition=Ready pods -n kyc-vault -l app.kubernetes.io/name=kyc-api-gateway --timeout=120s
+
+# Run health check
+curl -s https://api.kyc-vault.com/v1/health | jq
+[ -z "$(curl -s https://api.kyc-vault.com/v1/health | jq -r '.status | select(. != "ok")')" ] && echo "Healthy"
+
+# Run integration smoke tests
+pnpm test:smoke
 
 # Verify error rate returning to baseline
-curl -s localhost:9090/api/v1/query?query=job:http_errors:ratio5m | jq
-
-# Run integration tests
-make test-integration
-
-# Check dependent services health
-curl -s https://api.company.com/health | jq
+curl -s 'http://prometheus:9090/api/v1/query?query=rate(http_requests_total{status=~"5.."}[5m])'
 ```
 
-## Phase 4: Recovery
+---
 
-### Restore Normal Operations
-1. Remove any maintenance pages or rate limits
-2. Restore full replica counts
-3. Re-enable write connections
-4. Verify monitoring metrics stabilize
-5. Update status page to "Resolved"
+## Phase 5: Recovery
+
+### Normal Operations Restoration
 
 ```bash
-# Restore replica count
-kubectl scale deployment -n kyc api-server --replicas=10
+# Restore full replica count
+kubectl scale deployment -n kyc-vault kyc-api-gateway --replicas=6
+kubectl scale deployment -n kyc-vault kyc-orchestrator --replicas=4
+kubectl scale deployment -n kyc-vault kyc-zkp-engine --replicas=3
 
-# Re-enable writes (if disabled)
-kubectl annotate svc -n kyc postgres-primary postgres/read-only-
+# Remove maintenance mode
+kubectl patch svc -n kyc-vault kyc-api-gateway -p \
+  '{"spec":{"selector":{"maintenance":null}}}'
 
-# Remove network quarantines
-kubectl label pod -n kyc all-pods network-policy-
+# Re-enable DB writes
+kubectl exec -n kyc-vault svc/kyc-postgres -- psql -c "ALTER SYSTEM SET default_transaction_read_only = off; SELECT pg_reload_conf();"
 
-# Confirm all end-user services functional
-kubectl port-forward -n kyc svc/api-server 8080:80 &
-curl -s http://localhost:8080/api/v1/health
+# Remove network quarantine
+kubectl delete networkpolicy -n kyc-vault quarantine-egress --ignore-not-found
+
+# Flush any degraded caches
+kubectl exec -n kyc-vault deploy/kyc-orchestrator -- redis-cli -u $REDIS_URL FLUSHALL ASYNC
 ```
 
-## Phase 5: Post-Mortem
+### Validation
+1. Run full test suite: `pnpm test && cargo test && uv run pytest`
+2. Confirm monitoring alerts return to normal
+3. Update status page: "Resolved - all systems operational"
+4. Post resolution notice in #incident-{ID} and #general
+5. Close incident bridge and archive Slack channel
 
-### Timeline Template
-```
-Incident ID: INC-{DATE}-{NUM}
-Report Date: {YYYY-MM-DD}
-Severity: SEV-{X}
-Duration: {HH:MM} - {HH:MM} UTC
-Detection Method: {Alert / Customer / Manual}
-Root Cause: {Summary}
+---
+
+## Phase 6: Post-Mortem
+
+### Incident Report Template
+
+```yaml
+incident_id: INC-20260524-001
+report_date: 2026-05-25
+severity: SEV-2
+duration: 2026-05-24T14:30Z - 2026-05-24T16:45Z (2h15m)
+detection_method: Prometheus Alert "HighErrorRate"
+root_cause: Connection pool exhaustion due to unclosed transactions from ZKP batch proofs
+resolution: Increased pool size and added transaction timeout
 ```
 
-### Review Questions
-- What went well?
-- What went wrong?
-- What were the detection and response times?
-- Were runbooks followed? What was missing?
-- Which monitoring gaps existed?
-- What alerts should be added/modified?
-- What process improvements are needed?
+### 5 Whys Analysis
+1. Why did error rate spike? — Connections exhausted.
+2. Why were connections exhausted? — Transactions held open.
+3. Why were transactions held open? — ZKP batch proof timeout.
+4. Why did ZKP timeout not release connections? — Missing `try-finally` in proof submission handler.
+5. Why was the bug not caught? — No integration test for batch proof under load.
 
 ### Action Items
-- [ ] Create/update runbooks
-- [ ] Add missing alerts
-- [ ] Improve monitoring dashboards
-- [ ] Schedule load test
-- [ ] Security audit findings follow-up
-- [ ] Update incident response rotation
+- [ ] Add `try-finally` / `defer` to release database connections in ZKP proof handler
+- [ ] Add integration test for batch ZKP proof under concurrent load
+- [ ] Configure PostgreSQL `idle_in_transaction_session_timeout`
+- [ ] Add Grafana alert for connection pool utilization >80%
+- [ ] Update runbook with ZKP-specific failure modes
+
+### Blameless Culture Statement
+Incidents are opportunities to improve the system, not to assign fault. All post-mortem discussions focus on systemic weaknesses and process improvements.
+
+---
 
 ## Escalation Contacts
 
-| Tier | Contact | Role |
-|------|---------|------|
-| T1 | @oncall-backend | Primary Backend On-Call |
-| T1 | @oncall-platform | Primary Platform On-Call |
-| T2 | @eng-director | Engineering Director |
-| T2 | @security-lead | Security Lead |
-| T3 | @vp-engineering | VP of Engineering |
-| T3 | @cto | CTO (SEV-1 only) |
+| Tier | Channel | Response | Role |
+|------|---------|----------|------|
+| T1 | PagerDuty / Slack @oncall-backend | 15 min | Backend On-Call |
+| T1 | PagerDuty / Slack @oncall-platform | 15 min | Platform On-Call |
+| T2 | Slack @eng-director | 30 min | Engineering Director |
+| T2 | Slack @security-lead | 30 min | Security Lead |
+| T3 | Phone @vp-engineering | 60 min | VP Engineering |
+| T3 | Phone @cto | 60 min | CTO (SEV-1 only) |
 
-## Post-Incident Cleanup
+## Tools & Dashboards Quick Reference
 
-```bash
-# Archive incident Slack channel
-# Add incident to post-mortem tracker
-# Update runbook with lessons learned
-# Schedule follow-up security review if needed
-```
+- **Prometheus**: http://prometheus.internal:9090
+- **Grafana**: http://grafana.kyc-vault.com
+- **Loki**: http://loki.internal:3100
+- **Alertmanager**: http://alertmanager.internal:9093
+- **PagerDuty**: https://company.pagerduty.com
+- **Kibana (audit logs)**: http://kibana.internal:5601
+- **AWS Console**: https://console.aws.amazon.com
