@@ -1,0 +1,13 @@
+msrv = "1.85"
+warn_on_all_warnings = true
+disallowed_types = ["std::sync::Mutex", "std::sync::RwLock"]
+disallowed_methods = ["std::mem::transmute", "std::mem::uninitialized"]
+cognitive_complexity = 25
+doc_markdown = true
+missing_safety_doc = true
+missing_errors_doc = "warn"
+allow_dbg_in_tests = false
+allow_print_in_tests = false
+await_holding_invalid_types = true
+rc_buffer = true
+rc_mutex = true
