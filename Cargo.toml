@@ -8,6 +8,7 @@ members = [
     "crates/api-grpc",
     "crates/tee",
     "crates/did",
+    "lib/pqc",
 ]
 
 [workspace.package]
