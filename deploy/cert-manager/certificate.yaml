@@ -1,0 +1,175 @@
+# cert-manager Certificate Resource for Automatic TLS
+# ============================================================
+# Automatically provisions and renews TLS certificates
+# for KYC Vault services using Let's Encrypt or internal CA.
+
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: kyc-vault-letsencrypt
+  namespace: kyc-vault
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: security@kyc-vault.com
+    privateKeySecretRef:
+      name: letsencrypt-account-key
+    solvers:
+      - selector:
+          dnsZones:
+            - "kyc-vault.com"
+        dns01:
+          route53:
+            region: us-east-1
+            hostedZoneID: Z0123456789ABCDEF
+            role: arn:aws:iam::123456789012:role/cert-manager-dns
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: kyc-vault-ca-issuer
+  namespace: kyc-vault
+spec:
+  ca:
+    secretName: kyc-vault-ca-key-pair
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kyc-vault-api-tls
+  namespace: kyc-vault
+spec:
+  # Secret name where the TLS certificate will be stored
+  secretName: kyc-vault-api-tls-secret
+
+  # Certificate duration and renewal
+  duration: 2160h  # 90 days
+  renewBefore: 720h  # 30 days before expiry
+  revisionHistoryLimit: 5
+
+  # Private key configuration
+  privateKey:
+    algorithm: ECDSA
+    encoding: PKCS8
+    size: 384
+    rotationPolicy: Always
+
+  # Certificate subject
+  subject:
+    organizations:
+      - "KYC Vault Inc."
+    countries:
+      - "US"
+    provinces:
+      - "California"
+    localities:
+      - "San Francisco"
+    organizationalUnits:
+      - "Security"
+
+  # X.509 extensions
+  usages:
+    - server auth
+    - client auth
+  isCA: false
+
+  # SANs - Subject Alternative Names
+  dnsNames:
+    - "api.kyc-vault.com"
+    - "api.kyc-vault.internal"
+    - "*.api.kyc-vault.internal"
+    - "kyc-vault-api"
+    - "kyc-vault-api.kyc-vault.svc.cluster.local"
+
+  # IP addresses for direct pod access
+  ipAddresses:
+    - "10.0.0.10"
+    - "10.0.1.10"
+
+  # Issuer reference
+  issuerRef:
+    name: kyc-vault-ca-issuer
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kyc-vault-grpc-tls
+  namespace: kyc-vault
+spec:
+  secretName: kyc-vault-grpc-tls-secret
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    encoding: PKCS8
+    size: 384
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - "grpc.kyc-vault.internal"
+    - "*.grpc.kyc-vault.internal"
+    - "kyc-vault-grpc.kyc-vault.svc.cluster.local"
+  ipAddresses:
+    - "10.0.2.0/24"
+  issuerRef:
+    name: kyc-vault-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kyc-vault-mtls-client
+  namespace: kyc-vault
+spec:
+  secretName: kyc-vault-mtls-client-secret
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    encoding: PKCS8
+    size: 384
+  usages:
+    - client auth
+  subject:
+    organizationalUnits:
+      - "Service Mesh"
+  dnsNames:
+    - "*.kyc-vault.internal"
+  issuerRef:
+    name: kyc-vault-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kyc-vault-webhook-tls
+  namespace: kyc-vault
+spec:
+  secretName: kyc-vault-webhook-tls-secret
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 4096
+  usages:
+    - server auth
+  dnsNames:
+    - "webhook.kyc-vault.com"
+    - "webhooks.kyc-vault.internal"
+  issuerRef:
+    name: kyc-vault-letsencrypt
+    kind: Issuer
+---
+# ClusterIssuer for cross-namespace certificates
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: kyc-vault-cluster-issuer
+spec:
+  ca:
+    secretName: kyc-vault-ca-key-pair
