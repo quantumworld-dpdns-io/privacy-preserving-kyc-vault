@@ -1,0 +1,166 @@
+groups:
+  - name: log_alerts
+    interval: 30s
+    rules:
+      - alert: ErrorLogSpike
+        expr: count_over_time({app="api-server"} |= "error" [5m]) > 50
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Error log spike in {{ $labels.app }}"
+          description: "Error log count: {{ $value }} entries in the last 5 minutes."
+
+      - alert: FatalLogEvent
+        expr: count_over_time({app="api-server"} |= "fatal" [1m]) > 0
+        for: 10s
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Fatal log event in {{ $labels.app }}"
+          description: "Fatal log detected in pod {{ $labels.pod }}."
+
+      - alert: PanicDetected
+        expr: count_over_time({app="api-server"} |= "panic" [1m]) > 0
+        for: 5s
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Application panic detected"
+          description: "Panic detected in {{ $labels.app }} pod {{ $labels.pod }}."
+
+      - alert: AuthenticationFailureBurst
+        expr: count_over_time({app="api-server"} |= "authentication failed" [5m]) > 20
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Authentication failure burst"
+          description: "{{ $value }} auth failures in 5 minutes from {{ $labels.pod }}."
+
+      - alert: SQLQueryTimeout
+        expr: count_over_time({namespace="kyc"} |= "query timeout" [5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "SQL query timeouts detected"
+          description: "{{ $value }} query timeout logs in the last 5 minutes."
+
+      - alert: ZKPProofRejection
+        expr: count_over_time({app="zkp-service"} |= "proof rejected" [5m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "ZKP proof rejections elevated"
+          description: "{{ $value }} ZKP proof rejections in 5 minutes."
+
+      - alert: RateLimitExceeded
+        expr: count_over_time({app="api-server"} |= "rate limit exceeded" [5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Rate limit exceeded events"
+          description: "{{ $value }} rate limit hits in 5 minutes."
+
+      - alert: VaultUnsealRequired
+        expr: count_over_time({app="vault-agent"} |= "vault is sealed" [5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Vault needs unsealing"
+          description: "Vault seal detected in logs."
+
+      - alert: DatabaseConnectionError
+        expr: count_over_time({namespace="kyc"} |= "connection refused" [5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Database connection errors"
+          description: "{{ $value }} connection refused logs in 5 minutes."
+
+      - alert: DiskWriteErrors
+        expr: count_over_time({namespace="kyc"} |= "write error" [10m]) > 3
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Disk write errors detected"
+          description: "{{ $value }} write error logs in 10 minutes."
+
+      - alert: TLSHandshakeFailures
+        expr: count_over_time({app="api-server"} |= "tls handshake failed" [5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "TLS handshake failures"
+          description: "{{ $value }} TLS handshake failures in 5 minutes."
+
+      - alert: ConcurrentSessionLimit
+        expr: count_over_time({app="api-server"} |= "max concurrent sessions reached" [1m]) > 0
+        for: 10s
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Max concurrent sessions reached"
+          description: "Server is at capacity for concurrent sessions."
+
+      - alert: BackupFailure
+        expr: count_over_time({app="backup-job"} |= "backup failed" [5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Backup job failure"
+          description: "Database or file backup failed. Check backup-job logs."
+
+      - alert: TEEAttestationFailure
+        expr: count_over_time({app="teaclave"} |= "attestation failed" [5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "TEE attestation failure"
+          description: "SGX/TEE attestation failed for {{ $labels.pod }}."
+
+  - name: log_warnings
+    interval: 1m
+    rules:
+      - alert: SlowQueryDetected
+        expr: count_over_time({namespace="kyc"} |= "slow query" [15m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Slow queries detected"
+          description: "{{ $value }} slow query logs in 15 minutes."
+
+      - alert: MemoryPressureLog
+        expr: count_over_time({namespace="kyc"} |= "memory pressure" [5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Memory pressure detected in logs"
+          description: "Pod {{ $labels.pod }} reporting memory pressure."

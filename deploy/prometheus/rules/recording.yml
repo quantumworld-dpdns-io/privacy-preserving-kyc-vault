@@ -1,0 +1,123 @@
+groups:
+  - name: api_aggregations
+    interval: 1m
+    rules:
+      - record: job:http_requests_total:rate5m
+        expr: sum(rate(http_requests_total[5m])) by (job, endpoint, method)
+
+      - record: job:http_request_duration_seconds:p50
+        expr: histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job, endpoint))
+
+      - record: job:http_request_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job, endpoint))
+
+      - record: job:http_request_duration_seconds:p99
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job, endpoint))
+
+      - record: job:http_errors:ratio5m
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (job, endpoint)
+          /
+          sum(rate(http_requests_total[5m])) by (job, endpoint)
+
+      - record: job:http_success_rate:rate5m
+        expr: |
+          (sum(rate(http_requests_total[5m])) by (job, endpoint)
+          -
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (job, endpoint))
+          /
+          sum(rate(http_requests_total[5m])) by (job, endpoint)
+
+  - name: service_level_aggregations
+    interval: 5m
+    rules:
+      - record: slo:error_budget:30d
+        expr: |
+          (1 - sum(rate(http_requests_total{status=~"5.."}[30d])) by (job)
+          /
+          sum(rate(http_requests_total[30d])) by (job))
+
+      - record: slo:error_budget_remaining:30d
+        expr: |
+          (slo:error_budget:30d - 0.999) * sum(rate(http_requests_total[30d])) by (job)
+
+  - name: ai_model_aggregations
+    interval: 1m
+    rules:
+      - record: job:ai_inference_duration:p50
+        expr: histogram_quantile(0.50, sum(rate(ai_inference_duration_seconds_bucket[5m])) by (le, job, model))
+
+      - record: job:ai_inference_duration:p95
+        expr: histogram_quantile(0.95, sum(rate(ai_inference_duration_seconds_bucket[5m])) by (le, job, model))
+
+      - record: job:ai_inference_duration:p99
+        expr: histogram_quantile(0.99, sum(rate(ai_inference_duration_seconds_bucket[5m])) by (le, job, model))
+
+      - record: job:ai_token_usage:rate5m
+        expr: sum(rate(ai_token_usage_total[5m])) by (job, model, token_type)
+
+      - record: job:ai_inferences:rate5m
+        expr: sum(rate(ai_inferences_total[5m])) by (job, model, version)
+
+      - record: job:ai_accuracy:avg1h
+        expr: avg_over_time(ai_inference_accuracy_score[1h])
+
+  - name: infrastructure_aggregations
+    interval: 5m
+    rules:
+      - record: node:memory_usage_percent:avg5m
+        expr: (1 - avg(node_memory_MemAvailable_bytes) by (instance) / avg(node_memory_MemTotal_bytes) by (instance)) * 100
+
+      - record: node:cpu_usage_percent:avg5m
+        expr: avg(rate(node_cpu_seconds_total{mode!="idle"}[5m])) by (instance) * 100
+
+      - record: namespace:cpu_usage:rate5m
+        expr: sum(rate(container_cpu_usage_seconds_total[5m])) by (namespace)
+
+      - record: namespace:memory_usage:avg5m
+        expr: avg(container_memory_working_set_bytes) by (namespace)
+
+      - record: cluster:pod_health:ratio
+        expr: |
+          sum(kube_pod_status_phase{phase="Running"})
+          /
+          sum(kube_pod_status_phase)
+
+      - record: cluster:node_health:ratio
+        expr: |
+          count(kube_node_status_condition{condition="Ready", status="true"})
+          /
+          count(kube_node_status_condition{condition="Ready"})
+
+  - name: database_aggregations
+    interval: 1m
+    rules:
+      - record: postgres:connection_usage:ratio
+        expr: |
+          sum(pg_stat_database_numbackends) by (instance, datname)
+          /
+          sum(pg_settings_max_connections) by (instance)
+
+      - record: postgres:txn_commit_rate:rate5m
+        expr: sum(rate(pg_stat_database_xact_commit[5m])) by (instance, datname)
+
+      - record: postgres:txn_rollback_rate:rate5m
+        expr: sum(rate(pg_stat_database_xact_rollback[5m])) by (instance, datname)
+
+      - record: redis:memory_usage:percent
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100
+
+      - record: redis:hit_rate:rate5m
+        expr: rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m]))
+
+  - name: zkp_aggregations
+    interval: 1m
+    rules:
+      - record: job:zkp_prove_duration:p95
+        expr: histogram_quantile(0.95, sum(rate(zkp_prove_duration_seconds_bucket[5m])) by (le, job, circuit))
+
+      - record: job:zkp_verify_duration:p95
+        expr: histogram_quantile(0.95, sum(rate(zkp_verify_duration_seconds_bucket[5m])) by (le, job, circuit))
+
+      - record: job:zkp_proof_size:p95
+        expr: histogram_quantile(0.95, sum(rate(zkp_proof_size_bytes_bucket[5m])) by (le, job, circuit))

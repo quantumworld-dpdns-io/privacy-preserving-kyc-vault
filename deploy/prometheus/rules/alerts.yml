@@ -1,0 +1,325 @@
+groups:
+  - name: api_alerts
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: job:http_errors:ratio5m > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "High HTTP error rate ({{ $value | humanizePercentage }})"
+          description: "Error rate for {{ $labels.job }} / {{ $labels.endpoint }} is {{ $value | humanizePercentage }} for 5 minutes."
+
+      - alert: HighP99Latency
+        expr: job:http_request_duration_seconds:p99 > 5.0
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High p99 latency ({{ $value }}s)"
+          description: "p99 latency for {{ $labels.job }} / {{ $labels.endpoint }} is {{ $value }}s."
+
+      - alert: HighP95Latency
+        expr: job:http_request_duration_seconds:p95 > 2.0
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High p95 latency ({{ $value }}s)"
+          description: "p95 latency for {{ $labels.job }} / {{ $labels.endpoint }} is {{ $value }}s."
+
+      - alert: ErrorBudgetBurnRate
+        expr: slo:error_budget_remaining:30d < 0.1
+        for: 1h
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Error budget nearly depleted"
+          description: "Error budget remaining is {{ $value | humanize }}. SLO at risk."
+
+      - alert: TrafficAnomalyDrop
+        expr: abs(job:http_requests_total:rate5m - avg_over_time(job:http_requests_total:rate5m[1h])) > (2 * stddev_over_time(job:http_requests_total:rate5m[1h]))
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Traffic anomaly detected"
+          description: "Request rate for {{ $labels.endpoint }} deviates significantly from hourly baseline."
+
+  - name: ai_model_alerts
+    interval: 30s
+    rules:
+      - alert: ModelAccuracyDegradation
+        expr: job:ai_accuracy:avg1h < 0.95
+        for: 15m
+        labels:
+          severity: critical
+          team: ml
+        annotations:
+          summary: "Model accuracy degraded"
+          description: "Average accuracy for {{ $labels.model }} over the last hour is {{ $value | humanizePercentage }}."
+
+      - alert: InferenceLatencySpike
+        expr: job:ai_inference_duration:p95 > 10.0
+        for: 5m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "Inference latency spike"
+          description: "p95 inference latency for {{ $labels.model }} is {{ $value }}s."
+
+      - alert: HighTokenUsage
+        expr: job:ai_token_usage:rate5m > 100000
+        for: 5m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "High token consumption"
+          description: "Token usage rate for {{ $labels.model }} is {{ $value | humanize }} tokens/min."
+
+      - alert: OverspillRateHigh
+        expr: sum(rate(ai_overspill_total[5m])) by (reason) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "High AI overspill rate"
+          description: "Overspill events due to {{ $labels.reason }}: {{ $value }} events/min."
+
+      - alert: LowLivenessConfidence
+        expr: avg(ai_liveness_confidence_score) by (model) < 0.8
+        for: 10m
+        labels:
+          severity: critical
+          team: ml
+        annotations:
+          summary: "Liveness detection confidence low"
+          description: "Average liveness confidence for {{ $labels.model }} is {{ $value }}."
+
+  - name: infrastructure_alerts
+    interval: 1m
+    rules:
+      - alert: NodeDiskSpaceCritical
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Node disk space critical"
+          description: "Disk on {{ $labels.instance }} mount {{ $labels.mountpoint }} has {{ $value | humanize }}% free."
+
+      - alert: NodeDiskSpaceWarning
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 20
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Node disk space low"
+          description: "Disk on {{ $labels.instance }} mount {{ $labels.mountpoint }} has {{ $value | humanize }}% free."
+
+      - alert: HighMemoryUsage
+        expr: node:memory_usage_percent:avg5m > 90
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}%."
+
+      - alert: HighCPUUsage
+        expr: node:cpu_usage_percent:avg5m > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%."
+
+      - alert: ContainerRestarting
+        expr: rate(kube_pod_container_status_restarts_total[1h]) > 5
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Container restart loop detected"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last hour."
+
+      - alert: PodCrashLooping
+        expr: kube_pod_status_phase{phase="CrashLoopBackOff"} > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod in CrashLoopBackOff"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is crash looping."
+
+      - alert: PodPending
+        expr: kube_pod_status_phase{phase="Pending"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod stuck in Pending"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been pending for 10 minutes."
+
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready", status="false"} > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Node {{ $labels.node }} is not ready"
+          description: "Node {{ $labels.node }} has been NotReady for 2 minutes."
+
+      - alert: CertificateExpiring
+        expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < 604800
+        for: 1h
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "TLS certificate expiring soon"
+          description: "Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} expires in {{ $value | humanizeDuration }}."
+
+      - alert: K8sEventWarning
+        expr: rate(kube_event_total{type="Warning"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High rate of Kubernetes warning events"
+          description: "Warning event rate is {{ $value }} events/min."
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      - alert: PostgresConnectionPoolExhausted
+        expr: postgres:connection_usage:ratio > 0.85
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Postgres connection pool near limit"
+          description: "Connection usage on {{ $labels.instance }} / {{ $labels.datname }} is {{ $value | humanizePercentage }}."
+
+      - alert: PostgresTransactionRollbackHigh
+        expr: postgres:txn_rollback_rate:rate5m > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High transaction rollback rate"
+          description: "Rollback rate on {{ $labels.instance }} / {{ $labels.datname }} is {{ $value }} txn/s."
+
+      - alert: PostgresReplicaLag
+        expr: pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Postgres replication lag"
+          description: "Replication lag is {{ $value }}s."
+
+      - alert: RedisMemoryHigh
+        expr: redis:memory_usage:percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is {{ $value }}%."
+
+      - alert: RedisHitRateLow
+        expr: redis:hit_rate:rate5m < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Redis cache hit rate low"
+          description: "Redis hit rate is {{ $value | humanizePercentage }}."
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 10s
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Redis instance is down"
+          description: "Redis {{ $labels.instance }} is unreachable."
+
+  - name: security_alerts
+    interval: 1m
+    rules:
+      - alert: UnauthorizedAccessAttempt
+        expr: rate(http_requests_total{status="401"}[5m]) > 20
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "{{ $value }} 401 errors/min on {{ $labels.endpoint }}."
+
+      - alert: RateLimitingActivated
+        expr: rate(http_requests_total{status="429"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Rate limiting being triggered at high rate"
+          description: "{{ $value }} 429 responses/min."
+
+      - alert: ZKPVerificationFailure
+        expr: rate(zkp_verification_failures_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "ZKP verification failures spike"
+          description: "{{ $value }} proof verification failures/min."
+
+      - alert: VaultSealStatus
+        expr: vault_sealed == 1
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Vault is sealed"
+          description: "Hashicorp Vault instance {{ $labels.instance }} is sealed."
+
+      - alert: FailedKMSOperations
+        expr: rate(cloudkms_operation_failures_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "KMS operation failures"
+          description: "KMS operation failure rate is {{ $value }}/min."

@@ -1,0 +1,130 @@
+route:
+  group_by: ['alertname', 'cluster', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      repeat_interval: 30m
+      continue: true
+    - match:
+        team: security
+      receiver: 'security-team'
+      repeat_interval: 10m
+    - match:
+        team: ml
+      receiver: 'ml-team'
+    - match:
+        team: backend
+      receiver: 'backend-team'
+    - match:
+        team: platform
+      receiver: 'platform-team'
+    - match_re:
+        severity: ^(warning|info)$
+      receiver: 'slack-warnings'
+      repeat_interval: 8h
+
+receivers:
+  - name: 'default'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxx'
+        channel: '#alerts'
+        send_resolved: true
+        title: '{{ template "custom_title" . }}'
+        text: '{{ template "custom_slack" . }}'
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+
+  - name: 'slack-warnings'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxx'
+        channel: '#alerts-warnings'
+        send_resolved: true
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        text: '{{ template "custom_slack" . }}'
+
+  - name: 'backend-team'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxx'
+        channel: '#backend-alerts'
+        send_resolved: true
+        title: '{{ template "custom_title" . }}'
+        text: '{{ template "custom_slack" . }}'
+
+  - name: 'ml-team'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxx'
+        channel: '#ml-alerts'
+        send_resolved: true
+        title: '{{ template "custom_title" . }}'
+        text: '{{ template "custom_slack" . }}'
+
+  - name: 'platform-team'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxx'
+        channel: '#platform-alerts'
+        send_resolved: true
+        title: '{{ template "custom_title" . }}'
+        text: '{{ template "custom_slack" . }}'
+
+  - name: 'security-team'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxx'
+        channel: '#security-alerts'
+        send_resolved: true
+        title: '🚨 SECURITY: {{ template "custom_title" . }}'
+        text: '{{ template "custom_slack" . }}'
+    email_configs:
+      - to: 'security@company.com'
+        from: 'alertmanager@company.com'
+        smarthost: 'smtp.gmail.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password: 'APP_PASSWORD'
+        headers:
+          subject: '[SECURITY] {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - routing_key: 'YOUR_PAGERDUTY_INTEGRATION_KEY'
+        service_name: 'Critical Alerts'
+        severity: 'critical'
+        client: 'AlertManager'
+        client_url: 'https://ops.company.com/alerts'
+        description: '{{ template "custom_title" . }}'
+        details:
+          firing: '{{ template "custom_pd" . }}'
+        send_resolved: true
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxx'
+        channel: '#pagerduty'
+        send_resolved: true
+        title: '🚨 {{ .GroupLabels.alertname }}'
+        text: '{{ template "custom_slack" . }}'
+    email_configs:
+      - to: 'oncall+critical@company.com'
+        from: 'alertmanager@company.com'
+        smarthost: 'smtp.gmail.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password: 'APP_PASSWORD'
+        headers:
+          subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster']
+  - source_match:
+      alertname: 'NodeNotReady'
+    target_match:
+      alertname: 'HighCPUUsage'
+    equal: ['instance']
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

@@ -1,0 +1,178 @@
+{
+  "title": "Infrastructure Overview",
+  "uid": "infrastructure",
+  "version": 1,
+  "schemaVersion": 36,
+  "panels": [
+    {
+      "title": "CPU Usage by Pod",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total[5m])) by (pod, namespace) * 100",
+          "legendFormat": "{{namespace}}/{{pod}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "unit": "percent"
+    },
+    {
+      "title": "CPU Requests vs Limits Utilization",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\"}) by (namespace) / sum(kube_node_status_capacity{resource=\"cpu\"}) by (node) * 100",
+          "legendFormat": "Requests %"
+        },
+        {
+          "expr": "sum(kube_pod_container_resource_limits{resource=\"cpu\"}) by (namespace) / sum(kube_node_status_capacity{resource=\"cpu\"}) by (node) * 100",
+          "legendFormat": "Limits %"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "title": "Memory Usage by Pod",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(container_memory_working_set_bytes) by (pod, namespace)",
+          "legendFormat": "{{namespace}}/{{pod}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "unit": "bytes"
+    },
+    {
+      "title": "Disk I/O by Node",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(node_disk_read_bytes_total[5m])",
+          "legendFormat": "read {{device}} {{instance}}"
+        },
+        {
+          "expr": "rate(node_disk_written_bytes_total[5m])",
+          "legendFormat": "write {{device}} {{instance}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "unit": "Bps"
+    },
+    {
+      "title": "Network Traffic by Pod",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(container_network_receive_bytes_total[5m])) by (pod, namespace)",
+          "legendFormat": "rx {{namespace}}/{{pod}}"
+        },
+        {
+          "expr": "sum(rate(container_network_transmit_bytes_total[5m])) by (pod, namespace)",
+          "legendFormat": "tx {{namespace}}/{{pod}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "unit": "Bps"
+    },
+    {
+      "title": "Pod Status Overview",
+      "type": "table",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "kube_pod_status_phase{phase!=\"Running\"}",
+          "format": "table"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "columns": ["namespace", "pod", "phase", "reason"]
+    },
+    {
+      "title": "Node Disk Space Usage",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(1 - node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100",
+          "legendFormat": "{{instance}} {{mountpoint}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "unit": "percent",
+      "thresholds": [
+        { "value": 80, "color": "rgba(237, 129, 40, 0.89)" },
+        { "value": 90, "color": "rgba(245, 54, 54, 0.9)" }
+      ]
+    },
+    {
+      "title": "Container Restarts",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(kube_pod_container_status_restarts_total[1h])) by (pod, namespace)",
+          "legendFormat": "{{namespace}}/{{pod}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 }
+    },
+    {
+      "title": "Cluster Node Status",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "count(kube_node_status_condition{condition=\"Ready\", status=\"true\"})"
+        },
+        {
+          "expr": "count(kube_node_status_condition{condition=\"Ready\", status=\"false\"})"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 24 }
+    },
+    {
+      "title": "S3 Bucket Object Count",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "s3_bucket_size_bytes * on(bucket) s3_object_count / s3_bucket_size_bytes",
+          "legendFormat": "{{bucket}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 }
+    },
+    {
+      "title": "Database Connection Pool Usage",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "pg_stat_database_numbackends",
+          "legendFormat": "{{datname}} {{instance}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "query": "label_values(kube_pod_info, namespace)"
+      },
+      {
+        "name": "node",
+        "type": "query",
+        "query": "label_values(node_uname_info, nodename)"
+      }
+    ]
+  }
+}
