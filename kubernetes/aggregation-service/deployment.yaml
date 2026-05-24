@@ -1,0 +1,218 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aggregation-service
+  labels:
+    app: aggregation-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: aggregation-service
+  template:
+    metadata:
+      labels:
+        app: aggregation-service
+    spec:
+      containers:
+      - name: aggregation-service
+        image: aggregation-service:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: redis-url
+        - name: STRIPE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: stripe-secret-key
+        - name: PLAID_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: plaid-client-id
+        - name: PLAID_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: plaid-secret
+        - name: PLAID_ENV
+          value: "sandbox"
+        - name: JUMIO_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: jumio-api-token
+        - name: JUMIO_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: jumio-api-secret
+        - name: ONFIDO_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: onfido-api-token
+        - name: EXPERIAN_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: experian-client-id
+        - name: EXPERIAN_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: experian-client-secret
+        - name: EQUIFAX_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: equifax-client-id
+        - name: EQUIFAX_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: equifax-client-secret
+        - name: GOOGLE_MAPS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: google-maps-api-key
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: twilio-account-sid
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: twilio-auth-token
+        - name: TWILIO_VERIFY_SERVICE_SID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: twilio-verify-service-sid
+        - name: SENDGRID_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: sendgrid-api-key
+        - name: SENDGRID_FROM_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: sendgrid-from-email
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: aws-secret-access-key
+        - name: AWS_REGION
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: aws-region
+        - name: AWS_S3_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: aws-s3-bucket
+        - name: ETHEREUM_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: ethereum-rpc-url
+        - name: POLYGON_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: polygon-rpc-url
+        - name: BSC_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: bsc-rpc-url
+        - name: ARBITRUM_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: arbitrum-rpc-url
+        - name: INFURA_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: infura-project-id
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: google-client-id
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: google-client-secret
+        - name: GOOGLE_REDIRECT_URI
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: google-redirect-uri
+        - name: FACEBOOK_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: facebook-client-id
+        - name: FACEBOOK_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: facebook-client-secret
+        - name: APPLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: apple-client-id
+        - name: APPLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: aggregation-service-secrets
+              key: apple-client-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: logs-volume
+        emptyDir: {}
