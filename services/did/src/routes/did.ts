@@ -1,9 +1,26 @@
 import { Router } from 'express';
 import { DIDResolver, DIDDocument } from '@kyc-vault/did';
 import * as db from '../utils/db.js';
+import { validateSchema, JSONSchema } from '@privacy-preserving-kyc-vault/core';
 
 const router = Router();
 const resolver = new DIDResolver();
+
+const DID_REGISTRATION_SCHEMA: JSONSchema = {
+  type: 'object',
+  required: ['did', 'document'],
+  properties: {
+    did: { type: 'string', pattern: '^did:[a-z0-9]+:[a-zA-Z0-9._%-]+(:[a-zA-Z0-9._%-]+)*$' },
+    document: {
+      type: 'object',
+      required: ['id', 'verificationMethod'],
+      properties: {
+        id: { type: 'string' },
+        verificationMethod: { type: 'array', minItems: 1 },
+      },
+    },
+  },
+};
 
 router.get('/resolve/:did', async (req, res) => {
   try {
