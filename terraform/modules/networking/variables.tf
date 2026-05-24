@@ -1,33 +1,29 @@
-variable "name_prefix" {
-  description = "Prefix for all resource names"
-  type        = string
-}
-
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
   default     = "10.0.0.0/16"
 }
 
-variable "az_count" {
-  description = "Number of availability zones to use"
-  type        = number
-  default     = 3
+variable "public_subnet_cidrs" {
+  description = "List of public subnet CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
-variable "aws_region" {
-  description = "AWS region"
-  type        = string
+variable "private_subnet_cidrs" {
+  description = "List of private subnet CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.101.0/24", "10.0.102.0/24"]
 }
 
-variable "single_nat_gateway" {
-  description = "Whether to use a single NAT gateway for all AZs"
-  type        = bool
-  default     = false
+variable "availability_zones" {
+  description = "List of availability zones"
+  type        = list(string)
+  default     = ["us-east-1a", "us-east-1b"]
 }
 
-variable "flow_log_retention_days" {
-  description = "Retention days for VPC flow logs"
-  type        = number
-  default     = 30
+variable "tags" {
+  description = "Tags to apply to all resources"
+  type        = map(string)
+  default     = {}
 }

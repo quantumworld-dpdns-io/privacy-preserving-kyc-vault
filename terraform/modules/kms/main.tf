@@ -1,71 +1,92 @@
-resource "aws_kms_key" "main" {
-  for_each = var.keys
-
-  description             = lookup(each.value, "description", "KMS key for ${each.key}")
-  deletion_window_in_days = lookup(each.value, "deletion_window_days", 7)
-  enable_key_rotation     = lookup(each.value, "enable_rotation", true)
-  is_enabled              = lookup(each.value, "is_enabled", true)
-  key_usage               = lookup(each.value, "key_usage", "ENCRYPT_DECRYPT")
-  customer_master_key_spec = lookup(each.value, "key_spec", "SYMMETRIC_DEFAULT")
-  multi_region            = lookup(each.value, "multi_region", false)
-  policy                  = lookup(each.value, "policy", data.aws_iam_policy_document.default[each.key].json)
-
-  tags = merge({
-    Name = "${var.name_prefix}-${each.key}"
-  }, lookup(each.value, "tags", {}))
+# KMS Module
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+  }
 }
 
-data "aws_iam_policy_document" "default" {
-  for_each = {
-    for k, v in var.keys : k => v if lookup(v, "policy", null) == null
-  }
+variable "key_description" {
+  description = "Description of the KMS key"
+  type        = string
+  default     = "Application encryption key"
+}
 
-  statement {
-    sid    = "EnableIAMPermissions"
-    effect = "Allow"
-    principals {
-      type = "AWS"
-      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
-    }
-    actions   = ["kms:*"]
-    resources = ["*"]
-  }
+variable "deletion_window_in_days" {
+  description = "Deletion window in days"
+  type        = number
+  default     = 30
+}
 
-  statement {
-    sid    = "AllowServiceUsage"
-    effect = "Allow"
-    principals {
-      type        = "AWS"
-      identifiers = lookup(each.value, "allowed_principals", ["*"])
-    }
-    actions = [
-      "kms:Encrypt",
-      "kms:Decrypt",
-      "kms:ReEncrypt*",
-      "kms:GenerateDataKey*",
-      "kms:DescribeKey",
+variable "enable_key_rotation" {
+  description = "Enable automatic key rotation"
+  type        = bool
+  default     = true
+}
+
+variable "key_usage" {
+  description = "Key usage (ENCRYPT_DECRYPT or SIGN_VERIFY)"
+  type        = string
+  default     = "ENCRYPT_DECRYPT"
+}
+
+variable "key_spec" {
+  description = "Key spec (SYMMETRIC_DEFAULT, RSA_2048, etc.)"
+  type        = string
+  default     = "SYMMETRIC_DEFAULT"
+}
+
+variable "tags" {
+  description = "Tags to apply to the KMS key"
+  type        = map(string)
+  default     = {}
+}
+
+variable "policy" {
+  description = "JSON policy document for the KMS key"
+  type        = string
+  default     = ""
+}
+
+# KMS Key
+resource "aws_kms_key" "this" {
+  description         = var.key_description
+  deletion_window_in_days = var.deletion_window_in_days
+  enable_key_rotation = var.enable_key_rotation
+  key_usage           = var.key_usage
+  key_spec            = var.key_spec
+  
+  policy = var.policy != "" ? var.policy : jsonencode({
+    Version = "2012-10-17"
+    Id      = "key-default-1"
+    Statement = [
+      {
+        Sid       = "Enable IAM User Permissions"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action  = "kms:*"
+        Resource = "*"
+      }
     ]
-    resources = ["*"]
-  }
+  })
+
+  tags = var.tags
 }
 
+# Data source for current account
 data "aws_caller_identity" "current" {}
 
-resource "aws_kms_alias" "main" {
-  for_each = var.keys
-
-  name          = "alias/${var.name_prefix}/${each.key}"
-  target_key_id = aws_kms_key.main[each.key].key_id
+output "key_id" {
+  description = "The Key ID of the KMS key"
+  value       = aws_kms_key.this.key_id
 }
 
-resource "aws_kms_grant" "main" {
-  for_each = {
-    for k, v in var.keys : k => v if lookup(v, "grants", null) != null
-  }
-
-  name               = "${var.name_prefix}-${each.key}-grant"
-  key_id             = aws_kms_key.main[each.key].key_id
-  grantee_principal  = each.value.grants.grantee_principal
-  operations         = each.value.grants.operations
-  retiring_principal = lookup(each.value.grants, "retiring_principal", null)
+output "key_arn" {
+  description = "The ARN of the KMS key"
+  value       = aws_kms_key.this.arn
 }

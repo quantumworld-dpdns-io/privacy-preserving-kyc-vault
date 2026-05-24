@@ -1,170 +1,168 @@
-locals {
-  scope = var.is_regional ? "REGIONAL" : "CLOUDFRONT"
+# WAF Module
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+  }
 }
 
-resource "aws_wafv2_web_acl" "main" {
-  name        = "${var.name_prefix}-waf"
-  description = "WAF ACL for ${var.name_prefix}"
-  scope       = local.scope
+variable "name" {
+  description = "Name of the WAF Web ACL"
+  type        = string
+}
 
+variable "default_action_type" {
+  description = "Default action for the Web ACL (ALLOW or BLOCK)"
+  type        = string
+  default     = "ALLOW"
+}
+
+variable "rules" {
+  description = "List of WAF rules"
+  type        = any
+  default     = []
+}
+
+variable "tags" {
+  description = "Tags to apply to the WAF resources"
+  type        = map(string)
+  default     = {}
+}
+
+variable "scope" {
+  description = "Scope of the WAF (CLOUDFRONT or REGIONAL)"
+  type        = string
+  default     = "REGIONAL"
+}
+
+# WAF Web ACL
+resource "aws_wafv2_web_acl" "this" {
+  name        = var.name
+  scope       = var.scope
   default_action {
-    allow {}
+    type = var.default_action_type
   }
 
-  dynamic "rule" {
-    for_each = var.rate_limit_rules
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
+  rule {
+    name     = "AWSManagedRulesCommonRuleSet"
+    priority = 1
 
-      action {
-        block {}
-      }
+    override_action {
+      count = {}
+    }
 
-      statement {
-        rate_based_statement {
-          limit              = rule.value.limit
-          aggregate_key_type = "IP"
-        }
-      }
-
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name               = "${rule.value.name}-metric"
-        sampled_requests_enabled  = true
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
       }
     }
   }
 
-  dynamic "rule" {
-    for_each = var.owasp_rules
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
+  rule {
+    name     = "AWSManagedRulesKnownBadInputsRuleSet"
+    priority = 2
 
-      override_action {
-        none {}
-      }
+    override_action {
+      count = {}
+    }
 
-      statement {
-        managed_rule_group_statement {
-          name        = rule.value.managed_rule_group_name
-          vendor_name = "AWS"
-
-          dynamic "rule_action_override" {
-            for_each = lookup(rule.value, "rule_action_overrides", [])
-            content {
-              name = rule_action_override.value.name
-              action_to_use {
-                count {}
-              }
-            }
-          }
-
-          dynamic "excluded_rule" {
-            for_each = lookup(rule.value, "excluded_rules", [])
-            content {
-              name = excluded_rule.value
-            }
-          }
-        }
-      }
-
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name               = "${rule.value.name}-metric"
-        sampled_requests_enabled  = true
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
       }
     }
   }
 
-  dynamic "rule" {
-    for_each = var.ip_set_rules
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
+  rule {
+    name     = "AWSManagedRulesSQLiRuleSet"
+    priority = 3
 
-      action = rule.value.action
+    override_action {
+      count = {}
+    }
 
-      statement {
-        ip_set_reference_statement {
-          arn = rule.value.ip_set_arn
-        }
-      }
-
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name               = "${rule.value.name}-metric"
-        sampled_requests_enabled  = true
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesSQLiRuleSet"
+        vendor_name = "AWS"
       }
     }
   }
 
-  dynamic "rule" {
-    for_each = var.custom_rules
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
+  rule {
+    name     = "AWSManagedRulesLinuxRuleSet"
+    priority = 4
 
-      action = rule.value.action
+    override_action {
+      count = {}
+    }
 
-      statement {
-        byte_match_statement {
-          field_to_match {
-            single_header {
-              name = rule.value.header_name
-            }
-          }
-          positional_constraint = "EXACTLY"
-          search_string         = rule.value.match_value
-          text_transformation {
-            priority = 0
-            type     = "NONE"
-          }
-        }
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesLinuxRuleSet"
+        vendor_name = "AWS"
       }
+    }
+  }
 
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name               = "${rule.value.name}-metric"
-        sampled_requests_enabled  = true
+  rule {
+    name     = "AWSManagedRulesUnixRuleSet"
+    priority = 5
+
+    override_action {
+      count = {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesUnixRuleSet"
+        vendor_name = "AWS"
       }
+    }
+  }
+
+  rule {
+    name     = "RateLimitRule"
+    priority = 6
+
+    override_action {
+      block = {}
+    }
+
+    statement {
+      rate_based_statement {
+        limit            = 2000
+        aggregate_key_type = "IP"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "RateLimitRule"
+      sampled_requests_enabled   = true
     }
   }
 
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name               = "${var.name_prefix}-waf-metric"
-    sampled_requests_enabled  = true
+    metric_name                = var.name
+    sampled_requests_enabled   = true
   }
 
-  tags = {
-    Name = "${var.name_prefix}-waf"
-  }
+  tags = var.tags
 }
 
-resource "aws_wafv2_ip_set" "main" {
-  for_each = var.ip_sets
-
-  name               = "${var.name_prefix}-ipset-${each.key}"
-  description        = lookup(each.value, "description", "IP set for ${each.key}")
-  scope              = local.scope
-  ip_address_version = lookup(each.value, "ip_version", "IPV4")
-  addresses          = each.value.addresses
-
-  tags = {
-    Name = "${var.name_prefix}-ipset-${each.key}"
-  }
+output "web_acl_arn" {
+  description = "ARN of the WAF Web ACL"
+  value       = aws_wafv2_web_acl.this.arn
 }
 
-resource "aws_wafv2_web_acl_association" "main" {
-  for_each = var.associated_resources
-
-  resource_arn = each.value
-  web_acl_arn  = aws_wafv2_web_acl.main.arn
-}
-
-resource "aws_wafv2_web_acl_logging_configuration" "main" {
-  log_destination_configs = var.log_destination_configs
-  resource_arn            = aws_wafv2_web_acl.main.arn
+output "web_acl_id" {
+  description = "ID of the WAF Web ACL"
+  value       = aws_wafv2_web_acl.this.id
 }

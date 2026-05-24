@@ -1,103 +1,149 @@
-resource "aws_db_subnet_group" "main" {
-  name       = "${var.name_prefix}-rds-subnet-group"
-  subnet_ids = var.subnet_ids
-
-  tags = {
-    Name = "${var.name_prefix}-rds-subnet-group"
-  }
-}
-
-resource "aws_security_group" "rds" {
-  name_prefix = "${var.name_prefix}-rds-"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = var.allowed_security_group_ids
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${var.name_prefix}-rds-sg"
-  }
-}
-
-resource "aws_kms_key" "rds" {
-  description             = "KMS key for RDS encryption"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-
-  tags = {
-    Name = "${var.name_prefix}-rds-kms"
-  }
-}
-
-resource "aws_db_instance" "main" {
-  identifier = "${var.name_prefix}-rds"
-
-  engine         = "postgres"
-  engine_version = var.engine_version
-  instance_class = var.instance_class
-
-  db_name  = var.database_name
-  username = var.master_username
-  password = var.master_password
-
-  allocated_storage     = var.allocated_storage
-  max_allocated_storage = var.max_allocated_storage
-  storage_type          = "gp3"
-  storage_encrypted     = true
-  kms_key_id            = aws_kms_key.rds.arn
-
-  db_subnet_group_name   = aws_db_subnet_group.main.name
-  vpc_security_group_ids = [aws_security_group.rds.id]
-
-  backup_retention_period = var.backup_retention_days
-  backup_window          = var.backup_window
-  maintenance_window     = var.maintenance_window
-
-  multi_az               = var.multi_az
-  publicly_accessible    = false
-  deletion_protection    = var.deletion_protection
-  skip_final_snapshot    = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name_prefix}-rds-final-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
-
-  auto_minor_version_upgrade = true
-  copy_tags_to_snapshot      = true
-
-  performance_insights_enabled          = var.performance_insights_enabled
-  performance_insights_retention_period = var.performance_insights_retention_days
-
-  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
-
-  tags = {
-    Name = "${var.name_prefix}-rds"
-  }
-}
-
-resource "aws_db_parameter_group" "main" {
-  name_prefix = "${var.name_prefix}-rds-pg-"
-  family      = var.parameter_group_family
-  description = "Custom parameter group for ${var.name_prefix} RDS"
-
-  dynamic "parameter" {
-    for_each = var.db_parameters
-    content {
-      name         = parameter.value.name
-      value        = parameter.value.value
-      apply_method = lookup(parameter.value, "apply_method", "immediate")
+# RDS Module for PostgreSQL
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
     }
   }
+}
+
+variable "db_subnet_group_name" {
+  description = "Name of the DB subnet group"
+  type        = string
+  default     = "db-subnet-group"
+}
+
+variable "db_instance_class" {
+  description = "DB instance class"
+  type        = string
+  default     = "db.t3.medium"
+}
+
+variable "allocated_storage" {
+  description = "Allocated storage in GB"
+  type        = number
+  default     = 20
+}
+
+variable "engine_version" {
+  description = "PostgreSQL engine version"
+  type        = string
+  default     = "13.7"
+}
+
+variable "name" {
+  description = "DB instance identifier"
+  type        = string
+}
+
+variable "username" {
+  description = "Database username"
+  type        = string
+}
+
+variable "password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "vpc_security_group_ids" {
+  description = "List of VPC security group IDs"
+  type        = list(string)
+}
+
+variable "db_subnet_group_ids" {
+  description = "List of subnet IDs for DB subnet group"
+  type        = list(string)
+}
+
+variable "backup_retention_period" {
+  description = "Backup retention period in days"
+  type        = number
+  default     = 7
+}
+
+variable "backup_window" {
+  description = "Backup window"
+  type        = string
+  default     = "03:00-05:00"
+}
+
+variable "maintenance_window" {
+  description = "Maintenance window"
+  type        = string
+  default     = "sun:05:00-sun:06:00"
+}
+
+variable "multi_az" {
+  description = "Whether to enable multi-AZ"
+  type        = bool
+  default     = false
+}
+
+variable "storage_encrypted" {
+  description = "Whether to enable storage encryption"
+  type        = bool
+  default     = true
+}
+
+variable "kms_key_id" {
+  description = "KMS key ID for encryption"
+  type        = string
+  default     = ""
+}
+
+# DB Subnet Group
+resource "aws_db_subnet_group" "this" {
+  name       = var.db_subnet_group_name
+  subnet_ids = var.db_subnet_group_ids
 
   tags = {
-    Name = "${var.name_prefix}-rds-pg"
+    Name = var.db_subnet_group_name
   }
+}
+
+# RDS Instance
+resource "aws_db_instance" "this" {
+  identifier              = var.name
+  engine                  = "postgres"
+  engine_version          = var.engine_version
+  instance_class          = var.db_instance_class
+  allocated_storage       = var.allocated_storage
+  name                    = var.name
+  username                = var.username
+  password                = var.password
+  parameter_group_name    = "default.postgres13"
+  skip_final_snapshot     = false
+  final_snapshot_identifier = "${var.name}-final-snapshot"
+  vpc_security_group_ids  = var.vpc_security_group_ids
+  db_subnet_group_name    = aws_db_subnet_group.this.name
+  multi_az                = var.multi_az
+  storage_encrypted       = var.storage_encrypted
+  kms_key_id              = var.kms_key_id != "" ? var.kms_key_id : null
+  backup_retention_period = var.backup_retention_period
+  backup_window           = var.backup_window
+  maintenance_window      = var.maintenance_window
+  publicly_accessible     = false
+
+  tags = {
+    Name = var.name
+  }
+}
+
+output "address" {
+  description = "The DNS address of the RDS instance"
+  value       = aws_db_instance.this.address
+}
+
+output "port" {
+  description = "The port on which the DB accepts connections"
+  value       = aws_db_instance.this.port
+}
+
+output "instance_id" {
+  description = "The RDS instance ID"
+  value       = aws_db_instance.this.id
 }

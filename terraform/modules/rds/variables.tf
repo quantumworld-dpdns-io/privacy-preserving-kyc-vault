@@ -1,76 +1,63 @@
-variable "name_prefix" {
-  description = "Prefix for resource names"
+variable "db_subnet_group_name" {
+  description = "Name of the DB subnet group"
   type        = string
+  default     = "db-subnet-group"
 }
 
-variable "vpc_id" {
-  description = "VPC ID"
-  type        = string
-}
-
-variable "subnet_ids" {
-  description = "List of subnet IDs for the RDS instance"
-  type        = list(string)
-}
-
-variable "allowed_security_group_ids" {
-  description = "List of security group IDs allowed to connect to RDS"
-  type        = list(string)
-  default     = []
-}
-
-variable "engine_version" {
-  description = "PostgreSQL engine version"
-  type        = string
-  default     = "16.3"
-}
-
-variable "instance_class" {
-  description = "RDS instance class"
+variable "db_instance_class" {
+  description = "DB instance class"
   type        = string
   default     = "db.t3.medium"
-}
-
-variable "database_name" {
-  description = "Database name"
-  type        = string
-  default     = "kycvault"
-}
-
-variable "master_username" {
-  description = "Master username"
-  type        = string
-  sensitive   = true
-}
-
-variable "master_password" {
-  description = "Master password"
-  type        = string
-  sensitive   = true
 }
 
 variable "allocated_storage" {
   description = "Allocated storage in GB"
   type        = number
-  default     = 100
+  default     = 20
 }
 
-variable "max_allocated_storage" {
-  description = "Maximum storage in GB for autoscaling"
-  type        = number
-  default     = 500
+variable "engine_version" {
+  description = "PostgreSQL engine version"
+  type        = string
+  default     = "13.7"
 }
 
-variable "backup_retention_days" {
-  description = "Backup retention days"
+variable "name" {
+  description = "DB instance identifier"
+  type        = string
+}
+
+variable "username" {
+  description = "Database username"
+  type        = string
+}
+
+variable "password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "vpc_security_group_ids" {
+  description = "List of VPC security group IDs"
+  type        = list(string)
+}
+
+variable "db_subnet_group_ids" {
+  description = "List of subnet IDs for DB subnet group"
+  type        = list(string)
+}
+
+variable "backup_retention_period" {
+  description = "Backup retention period in days"
   type        = number
-  default     = 30
+  default     = 7
 }
 
 variable "backup_window" {
   description = "Backup window"
   type        = string
-  default     = "03:00-04:00"
+  default     = "03:00-05:00"
 }
 
 variable "maintenance_window" {
@@ -80,47 +67,19 @@ variable "maintenance_window" {
 }
 
 variable "multi_az" {
-  description = "Whether to enable multi-AZ deployment"
+  description = "Whether to enable multi-AZ"
   type        = bool
   default     = false
 }
 
-variable "deletion_protection" {
-  description = "Whether to enable deletion protection"
+variable "storage_encrypted" {
+  description = "Whether to enable storage encryption"
   type        = bool
   default     = true
 }
 
-variable "skip_final_snapshot" {
-  description = "Whether to skip final snapshot on deletion"
-  type        = bool
-  default     = false
-}
-
-variable "performance_insights_enabled" {
-  description = "Whether to enable Performance Insights"
-  type        = bool
-  default     = true
-}
-
-variable "performance_insights_retention_days" {
-  description = "Performance Insights retention in days"
-  type        = number
-  default     = 7
-}
-
-variable "parameter_group_family" {
-  description = "Parameter group family"
+variable "kms_key_id" {
+  description = "KMS key ID for encryption"
   type        = string
-  default     = "postgres16"
-}
-
-variable "db_parameters" {
-  description = "List of DB parameters"
-  type = list(object({
-    name         = string
-    value        = string
-    apply_method = optional(string, "immediate")
-  }))
-  default = []
+  default     = ""
 }

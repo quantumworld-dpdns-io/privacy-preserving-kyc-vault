@@ -1,49 +1,39 @@
-variable "name_prefix" {
-  description = "Prefix for IAM role names"
+variable "role_name" {
+  description = "Name of the IAM role"
   type        = string
 }
 
-variable "oidc_provider_arn" {
-  description = "ARN of the OIDC provider for IRSA"
+variable "role_description" {
+  description = "Description of the IAM role"
   type        = string
-  default     = null
+  default     = ""
 }
 
-variable "oidc_provider_url" {
-  description = "URL of the OIDC provider (issuer URL)"
+variable "assume_role_policy" {
+  description = "JSON policy document for assuming the role"
   type        = string
-  default     = null
 }
 
-variable "roles" {
-  description = "Map of IAM role configurations"
-  type = map(object({
-    assume_role_policy   = string
-    description          = optional(string)
-    max_session_duration = optional(number, 3600)
-    path                 = optional(string, "/")
-    policy_arns          = optional(list(string), [])
-    inline_policies      = optional(string)
-    tags                 = optional(map(string))
-  }))
-  default = {}
+variable "attached_policy_arns" {
+  description = "List of ARN of IAM policies to attach to the role"
+  type        = list(string)
+  default     = []
 }
 
-variable "irsa_roles" {
-  description = "Map of IRSA role configurations"
-  type = map(object({
-    namespace       = string
-    service_account = string
-    policy_arns     = list(string)
-  }))
-  default = {}
+variable "inline_policy_names" {
+  description = "List of names for inline policies"
+  type        = list(string)
+  default     = []
 }
 
-variable "service_linked_roles" {
-  description = "Map of service-linked role configurations"
-  type = map(object({
-    aws_service_name = string
-    description      = optional(string)
-  }))
-  default = {}
+variable "inline_policies" {
+  description = "List of inline policy documents"
+  type        = list(string)
+  default     = []
+}
+
+variable "tags" {
+  description = "Tags to apply to the IAM role"
+  type        = map(string)
+  default     = {}
 }
