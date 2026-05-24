@@ -1,0 +1,36 @@
+creation_rules:
+  - path_regex: secrets/.*\.yaml
+    age: age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
+    encrypted_regex: "^(data|stringData|password|secret|api_key|token|private_key|certificate|key)$"
+
+  - path_regex: secrets/.*\.json
+    age: age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
+    encrypted_regex: ".*(password|secret|token|key|certificate).*"
+
+  - path_regex: secrets/.*\.env
+    age: age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
+
+  - path_regex: .*\.secret\.yaml
+    age: age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
+
+  - path_regex: secrets/production/.*
+    age:
+      - age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
+    kms:
+      - arn: arn:aws:kms:us-west-2:123456789012:key/abcd1234-ef56-7890-abcd-ef1234567890
+        aws_profile: kyc-vault-prod
+    encrypted_regex: ^(data|stringData|password|secret|token|key|certificate|connection_string)$
+
+  - path_regex: secrets/staging/.*
+    age:
+      - age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
+    kms:
+      - arn: arn:aws:kms:us-west-2:123456789012:key/abcd1234-ef56-7890-abcd-ef1234567891
+        aws_profile: kyc-vault-staging
+
+  - path_regex: secrets/development/.*
+    age:
+      - age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
+
+  - path_regex: clusters/.*/secrets\.yaml
+    age: age1abc123def456ghi789jkl0mno1pqr2stu3vwx4yz5abc6def7ghi8jkl9mno
