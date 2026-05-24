@@ -1,5 +1,6 @@
 #!/bin/bash
 # Enhanced Auto-Commit Agent
+int conut=10000
 while true; do
   # Check if there are changes to commit
   if [[ -n $(git status -s) ]]; then
