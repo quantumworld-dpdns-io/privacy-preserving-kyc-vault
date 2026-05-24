@@ -1,0 +1,90 @@
+name: Task
+description: Create a development task or chore
+title: "[Task] "
+labels: [task, triage]
+type: Task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for development tasks, chores, and improvements that don't fit bug/feature categories.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - refactoring
+        - testing
+        - CI/CD
+        - infrastructure
+        - monitoring / observability
+        - dependency upgrade
+        - tooling
+        - code quality
+        - technical debt
+        - automation
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - critical (blocking)
+        - high (important)
+        - medium (normal)
+        - low (nice to have)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: Estimated Effort
+      options:
+        - small (hours)
+        - medium (days)
+        - large (weeks)
+        - unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: What needs to be done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What defines completion?
+      placeholder: |
+        - [ ] Criteria 1
+        - [ ] Criteria 2
+        - [ ] Tests written
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Links, references, or notes
+      placeholder: Related issues, PRs, or documentation
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      options:
+        - label: I have searched for existing tasks
+          required: true
+        - label: This task has clear acceptance criteria
+          required: true
