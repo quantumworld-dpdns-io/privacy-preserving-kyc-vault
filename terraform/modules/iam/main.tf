@@ -1,104 +1,93 @@
-resource "aws_iam_role" "custom" {
-  for_each = var.roles
-
-  name                 = "${var.name_prefix}-${each.key}"
-  assume_role_policy   = each.value.assume_role_policy
-  description          = lookup(each.value, "description", null)
-  max_session_duration = lookup(each.value, "max_session_duration", 3600)
-  path                 = lookup(each.value, "path", "/")
-
-  tags = merge({
-    Name = "${var.name_prefix}-${each.key}"
-  }, lookup(each.value, "tags", {}))
-}
-
-resource "aws_iam_policy" "custom" {
-  for_each = {
-    for k, v in var.roles : k => v if lookup(v, "inline_policies", null) != null
-  }
-
-  name        = "${var.name_prefix}-${each.key}-policy"
-  description = "Policy for ${var.name_prefix}-${each.key}"
-  path        = "/"
-
-  policy = each.value.inline_policies
-}
-
-resource "aws_iam_role_policy_attachment" "custom" {
-  for_each = {
-    for pair in local.role_policy_attachments : "${pair.role}.${pair.policy}" => pair
-  }
-
-  role       = aws_iam_role.custom[each.value.role].name
-  policy_arn = each.value.policy_arn
-}
-
-locals {
-  role_policy_attachments = flatten([
-    for role_key, role_config in var.roles : [
-      for policy_arn in lookup(role_config, "policy_arns", []) : {
-        role       = role_key
-        policy_arn = policy_arn
-      }
-    ]
-  ])
-}
-
-resource "aws_iam_service_linked_role" "custom" {
-  for_each = {
-    for k, v in var.service_linked_roles : k => v
-  }
-
-  aws_service_name = each.value.aws_service_name
-  description      = lookup(each.value, "description", null)
-}
-
-data "aws_iam_policy_document" "irsa" {
-  for_each = var.irsa_roles
-
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "Federated"
-      identifiers = [var.oidc_provider_arn]
-    }
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-    condition {
-      test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:${each.value.namespace}:${each.value.service_account}"]
+# IAM Module
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
     }
   }
 }
 
-resource "aws_iam_role" "irsa" {
-  for_each = var.irsa_roles
-
-  name                 = "${var.name_prefix}-irsa-${each.key}"
-  assume_role_policy   = data.aws_iam_policy_document.irsa[each.key].json
-  max_session_duration = 3600
-
-  tags = {
-    Name = "${var.name_prefix}-irsa-${each.key}"
-  }
+variable "role_name" {
+  description = "Name of the IAM role"
+  type        = string
 }
 
-resource "aws_iam_role_policy_attachment" "irsa" {
-  for_each = {
-    for pair in local.irsa_policy_attachments : "${pair.role}.${pair.policy}" => pair
-  }
-
-  role       = aws_iam_role.irsa[each.value.role].name
-  policy_arn = each.value.policy_arn
+variable "role_description" {
+  description = "Description of the IAM role"
+  type        = string
+  default     = ""
 }
 
-locals {
-  irsa_policy_attachments = flatten([
-    for role_key, role_config in var.irsa_roles : [
-      for policy_arn in lookup(role_config, "policy_arns", []) : {
-        role       = role_key
-        policy_arn = policy_arn
-      }
-    ]
-  ])
+variable "assume_role_policy" {
+  description = "JSON policy document for assuming the role"
+  type        = string
+}
+
+variable "attached_policy_arns" {
+  description = "List of ARN of IAM policies to attach to the role"
+  type        = list(string)
+  default     = []
+}
+
+variable "inline_policy_names" {
+  description = "List of names for inline policies"
+  type        = list(string)
+  default     = []
+}
+
+variable "inline_policies" {
+  description = "List of inline policy documents"
+  type        = list(string)
+  default     = []
+}
+
+variable "tags" {
+  description = "Tags to apply to the IAM role"
+  type        = map(string)
+  default     = {}
+}
+
+# IAM Role
+resource "aws_iam_role" "this" {
+  name                 = var.role_name
+  description          = var.role_description
+  assume_role_policy   = var.assume_role_policy
+  tags                 = var.tags
+}
+
+# Attach managed policies
+resource "aws_iam_role_policy_attachment" "attached" {
+  count       = length(var.attached_policy_arns)
+  role        = aws_iam_role.this.name
+  policy_arn  = element(var.attached_policy_arns, count.index)
+}
+
+# Inline policies
+resource "aws_iam_policy" "inline" {
+  count   = length(var.inline_policy_names)
+  name    = element(var.inline_policy_names, count.index)
+  policy  = element(var.inline_policies, count.index)
+}
+
+resource "aws_iam_role_policy" "inline" {
+  count   = length(var.inline_policy_names)
+  role    = aws_iam_role.this.id
+  policy  = element(aws_iam_policy.inline[*].id, count.index)
+}
+
+output "role_name" {
+  description = "Name of the IAM role"
+  value       = aws_iam_role.this.name
+}
+
+output "role_arn" {
+  description = "ARN of the IAM role"
+  value       = aws_iam_role.this.arn
+}
+
+output "role_unique_id" {
+  description = "Unique ID of the IAM role"
+  value       = aws_iam_role.this.unique_id
 }
