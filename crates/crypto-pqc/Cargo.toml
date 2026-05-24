@@ -16,3 +16,4 @@ aes-gcm.workspace = true
 x25519-dalek.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+argon2 = "0.5"

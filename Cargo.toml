@@ -1,21 +1,16 @@
 [workspace]
 resolver = "3"
-members = [
-    "crates/core",
-    "crates/zkp",
-    "crates/crypto-pqc",
-    "crates/wasm-runtime",
-    "crates/api-grpc",
-    "crates/tee",
-    "crates/did",
-    "lib/pqc",
-]
+members = ["crates/crypto-pqc"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/quantumworld-dpdns-io/privacy-preserving-kyc-vault"
+rust-version = "1.85"
+
+[workspace.lints]
+rust.unsafe_code = "deny"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

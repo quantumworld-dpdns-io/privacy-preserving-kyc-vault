@@ -3,7 +3,8 @@ use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret, StaticSecret};
+use curve25519_dalek::scalar::Scalar;
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HPKECiphertext {

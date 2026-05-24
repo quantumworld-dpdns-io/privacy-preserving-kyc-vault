@@ -13,7 +13,7 @@ impl ShamirSecretSharing {
 
         let mut rng = rand::thread_rng();
         let coefficients: Vec<[u8; 32]> = (0..(threshold as usize - 1))
-            .map(|_| rng.gen())
+            .map(|_| rng.r#gen())
             .collect();
 
         let mut shares = Vec::new();
