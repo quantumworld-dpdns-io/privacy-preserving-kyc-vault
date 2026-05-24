@@ -41,30 +41,29 @@ fn verify_measurement_integrity(measurement: Field, trusted: Field) -> bool {
 
 #[test]
 fn test_device_attestation_valid() {
-    let pubkey: Field = 555;
-    let nonce: Field = 88;
-    let measurement: Field = 12345;
+    let pubkey: Field = 100;
+    let nonce: Field = 1;
+    let measurement: Field = 1;
     let msg = compute_attestation_message(pubkey, nonce, measurement);
-    let r: Field = 7;
-    let s: Field = 9;
-    let sig_recovered = (msg + r * 5 + s * 11) % 7919;
-    let attestation = derive_attestation(pubkey, nonce, measurement);
-    let result = main(pubkey, attestation, nonce, measurement, measurement, r, s);
-    assert(result == false);
-}
-
-#[test]
-fn test_device_attestation_valid_match() {
-    let pubkey: Field = 555;
-    let nonce: Field = 88;
-    let measurement: Field = 12345;
-    let msg = compute_attestation_message(pubkey, nonce, measurement);
-    let r: Field = 7;
-    let s: Field = 9;
-    let recovered = (msg + r * 5 + s * 11) % 7919;
+    let r: Field = 4;
+    let s: Field = 266;
+    let recovered = recover_attestation_signer(msg, r, s);
     constrain recovered == pubkey;
     let attestation = derive_attestation(pubkey, nonce, measurement);
     let result = main(pubkey, attestation, nonce, measurement, measurement, r, s);
+    assert(result);
+}
+
+#[test]
+fn test_device_attestation_invalid_measurement() {
+    let pubkey: Field = 100;
+    let nonce: Field = 1;
+    let measurement: Field = 1;
+    let msg = compute_attestation_message(pubkey, nonce, measurement);
+    let r: Field = 4;
+    let s: Field = 266;
+    let attestation = derive_attestation(pubkey, nonce, measurement);
+    let result = main(pubkey, attestation, nonce, measurement, 999, r, s);
     assert(result == false);
 }
 
