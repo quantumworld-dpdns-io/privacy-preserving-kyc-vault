@@ -1,0 +1,159 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Docker image tag to deploy"
+        required: true
+        type: string
+      confirm_approval:
+        description: "I confirm I have approval for this deployment"
+        required: true
+        type: boolean
+        default: false
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  KUBE_NAMESPACE: production
+  DEPLOY_TIMEOUT: 600
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          if [[ "${{ github.event.inputs.confirm_approval }}" != "true" ]]; then
+            echo "Deployment approval must be confirmed."
+            exit 1
+          fi
+
+      - name: Validate image tag format
+        run: |
+          if [[ ! "${{ github.event.inputs.tag }}" =~ ^[a-f0-9]{7,}-[0-9]{14}$ ]]; then
+            echo "Invalid tag format. Expected: <sha>-<timestamp>"
+            exit 1
+          fi
+
+      - name: Verify image exists in ECR
+        run: |
+          aws ecr describe-images \
+            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --image-ids imageTag=${{ github.event.inputs.tag }} \
+            --region ${{ env.AWS_REGION }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  notify-start:
+    name: Notify Deployment Start
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_DEPLOY_CHANNEL }}",
+              "username": "Deploy Bot",
+              "text": ":rocket: Production deployment *STARTED*\nTag: `${{ github.event.inputs.tag }}`\nUser: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  smoke-test:
+    name: Smoke Test Staging
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run staging smoke tests
+        run: |
+          echo "Running smoke tests against staging..."
+          ./scripts/smoke-test.sh
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [notify-start, smoke-test]
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" > $HOME/.kube/config
+
+      - name: Update manifest image tag
+        run: |
+          sed -i "s|image:.*|image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.event.inputs.tag }}|g" k8s/overlays/production/deployment-patch.yaml
+
+      - name: Deploy to production
+        run: |
+          kubectl apply -k k8s/overlays/production -n ${{ env.KUBE_NAMESPACE }}
+          kubectl rollout status deployment -n ${{ env.KUBE_NAMESPACE }} --timeout=${{ env.DEPLOY_TIMEOUT }}s
+
+      - name: Post-deploy verification
+        run: |
+          kubectl get pods -n ${{ env.KUBE_NAMESPACE }} -l app=${{ vars.APP_NAME }}
+          kubectl get ingress -n ${{ env.KUBE_NAMESPACE }}
+
+  notify-complete:
+    name: Notify Deployment Complete
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_DEPLOY_CHANNEL }}",
+              "username": "Deploy Bot",
+              "text": "${{ needs.deploy.result == 'success' && ':white_check_mark:' || ':x:' }} Production deployment *${{ needs.deploy.result == 'success' && 'SUCCEEDED' || 'FAILED' }}*\nTag: `${{ github.event.inputs.tag }}`\nUser: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  health-check:
+    name: Post-Deploy Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+    steps:
+      - name: Wait for settling
+        run: sleep 30
+
+      - name: Check health endpoint
+        run: |
+          for i in {1..12}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ vars.PRODUCTION_URL }}/health)
+            if [ "$STATUS" == "200" ]; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i: status $STATUS, retrying..."
+            sleep 10
+          done
+          echo "Health check failed after 12 attempts"
+          exit 1
+
+      - name: Rollback on health failure
+        if: failure()
+        run: |
+          echo "Health check failed. Initiating rollback..."
+          kubectl rollout undo deployment -n ${{ env.KUBE_NAMESPACE }}
