@@ -1,0 +1,76 @@
+name: Release Alpha
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Alpha version (e.g. 2.2.0-alpha.1)"
+        required: true
+        type: string
+      from_branch:
+        description: "Branch to release from"
+        required: false
+        default: develop
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  alpha-release:
+    name: Create Alpha Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.from_branch }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate version
+        run: |
+          if [[ ! "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then
+            echo "Invalid alpha version. Use semver with -alpha.N suffix (e.g. 2.2.0-alpha.1)"
+            exit 1
+          fi
+
+      - name: Bump version
+        run: |
+          npm version ${{ github.event.inputs.version }} --no-git-tag-version
+          echo "${{ github.event.inputs.version }}" > VERSION
+
+      - name: Build and publish alpha package
+        run: |
+          npm ci
+          npm run build
+          npm publish --tag alpha
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build and push alpha Docker image
+        run: |
+          docker build -t ${{ vars.ECR_REGISTRY }}/${{ github.repository }}:v${{ github.event.inputs.version }} .
+          docker push ${{ vars.ECR_REGISTRY }}/${{ github.repository }}:v${{ github.event.inputs.version }}
+        env:
+          DOCKER_BUILDKIT: 1
+
+      - name: Tag release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json VERSION
+          git commit -m "chore(release): alpha v${{ github.event.inputs.version }}"
+          git tag "v${{ github.event.inputs.version }}"
+          git push origin "v${{ github.event.inputs.version }}"
+
+      - name: Create GitHub Release (pre-release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }} (Alpha)
+          prerelease: true
+          generate_release_notes: true
