@@ -75,9 +75,9 @@ fn test_kyc_expiry_after_approval() {
 fn test_kyc_revocation_after_approval() {
     let mut wf = make_workflow("wf-revoke-1", "did:example:user6");
 
-    wf.transition(KYCState::DocumentsSubmitted, "did:example:user6".into(), "").into()).unwrap();
-    wf.transition(KYCState::UnderReview, "did:example:reviewer".into(), "").into()).unwrap();
-    wf.transition(KYCState::Approved, "did:example:reviewer".into(), "").into()).unwrap();
+    wf.transition(KYCState::DocumentsSubmitted, "did:example:user6".into(), "submitted".into()).unwrap();
+    wf.transition(KYCState::UnderReview, "did:example:reviewer".into(), "reviewing".into()).unwrap();
+    wf.transition(KYCState::Approved, "did:example:reviewer".into(), "approved".into()).unwrap();
     wf.transition(KYCState::Revoked, "did:example:admin".into(), "Fraud detected".into()).unwrap();
 
     assert_eq!(wf.state, KYCState::Revoked);
