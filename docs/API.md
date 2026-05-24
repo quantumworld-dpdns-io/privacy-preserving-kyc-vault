@@ -208,13 +208,68 @@ Assess fraud risk.
 
 Create a checkout session.
 
+**Request:**
+```json
+{
+  "items": [
+    { "id": "kyc-verification-basic", "quantity": 1 }
+  ],
+  "successUrl": "https://dashboard.kyc-vault.com/success",
+  "cancelUrl": "https://dashboard.kyc-vault.com/cancel"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "sessionId": "cs_test_a1b2c3d4e5f6",
+    "checkoutUrl": "https://checkout.kyc-vault.com/pay/cs_test_a1b2c3d4e5f6"
+  }
+}
+```
+
 #### POST /commerce/order/:id
 
 Confirm or manage an order.
 
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440005",
+    "status": "completed",
+    "total": 15.00,
+    "currency": "USD"
+  }
+}
+```
+
 #### POST /commerce/estimate
 
 Get price estimate.
+
+**Request:**
+```json
+{
+  "tier": "enhanced",
+  "volume": 1000
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "unitPrice": 0.85,
+    "totalEstimate": 850.00,
+    "currency": "USD"
+  }
+}
+```
 
 ### Billing
 
@@ -222,13 +277,45 @@ Get price estimate.
 
 Record usage metering data.
 
+**Request:**
+```json
+{
+  "customerId": "cust_123",
+  "metric": "kyc_verification",
+  "value": 1,
+  "timestamp": "2026-05-24T12:00:00Z"
+}
+```
+
 #### POST /billing/invoices
 
 Generate invoice.
 
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "invoiceId": "inv_789",
+    "amount": 1250.50,
+    "dueDate": "2026-06-24T00:00:00Z",
+    "pdfUrl": "https://billing.kyc-vault.com/invoices/inv_789.pdf"
+  }
+}
+```
+
 #### POST /billing/credits
 
 Apply credits.
+
+**Request:**
+```json
+{
+  "customerId": "cust_123",
+  "amount": 100.00,
+  "reason": "referral_bonus"
+}
+```
 
 ## Rate Limiting
 
