@@ -46,4 +46,5 @@ while count>10000; do
   
   echo "Sleeping for 0.5 seconds..."
   sleep 0.5
+  echo "count: $count"
 done
