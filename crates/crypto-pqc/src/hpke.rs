@@ -4,6 +4,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use curve25519_dalek::MontgomeryPoint;
+use rand::RngCore;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
