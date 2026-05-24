@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_my_dh_matches_dalek() {
-        use rand_core::{CryptoRng, RngCore};
+        use rand::{CryptoRng, RngCore};
         use x25519_dalek::EphemeralSecret;
 
         struct FixedRng([u8; 32], bool);
