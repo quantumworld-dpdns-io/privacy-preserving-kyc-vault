@@ -1,0 +1,52 @@
+name: E2E Tests
+on:
+  workflow_run:
+    workflows: [Docker Build & Push]
+    types: [completed]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: kyc_vault_test
+          POSTGRES_USER: kyc
+          POSTGRES_PASSWORD: kyc
+        options: >-
+          --health-cmd pg_isready -U kyc
+          --health-interval 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd redis-cli ping
+          --health-interval 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+      minio:
+        image: minio/minio
+        command: server /data
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: cp .env.example .env
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: test-results/
