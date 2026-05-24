@@ -1,0 +1,49 @@
+name: kyc_vault
+version: "1.0"
+config-version: 2
+
+profile: kyc_vault
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+vars:
+  dbt_utils_version: ">=1.1.0"
+
+models:
+  kyc_vault:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
+      dim_platform:
+        +materialized: table
+      fct_verifications:
+        +materialized: incremental
+        +incremental_strategy: merge
+        +unique_key: verification_key
+      fct_billing:
+        +materialized: incremental
+        +incremental_strategy: merge
+        +unique_key: billing_key
+
+seeds:
+  +schema: seed_data
+
+snapshots:
+  +schema: snapshots
+  +target_schema: snapshots
+  +unique_key: id
+  +strategy: timestamp
+  +updated_at: updated_at

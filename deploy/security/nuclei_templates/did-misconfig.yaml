@@ -1,0 +1,153 @@
+id: kyc-did-misconfiguration
+
+info:
+  name: DID Endpoint Misconfiguration
+  author: security-team
+  severity: high
+  description: |
+    Checks for common DID method endpoint misconfigurations including
+    unrestricted DID creation, lack of authentication on resolution,
+    injection vulnerabilities, and improper access control.
+  classification:
+    cwe-id: CWE-284
+  tags: kyc, did, misconfiguration, access-control
+
+requests:
+  # ── Unauthenticated DID creation ──────────────────────────
+  - method: POST
+    path:
+      - "{{BaseURL}}/v1/did/create"
+      - "{{BaseURL}}/api/v1/did/create"
+      - "{{BaseURL}}/did/create"
+    headers:
+      Content-Type: application/json
+    body: '{"method":"kyc","publicKeyType":"Ed25519VerificationKey2020"}'
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "did:kyc:"
+          - "verificationMethod"
+          - "authentication"
+        condition: or
+      - type: status
+        status:
+          - 200
+          - 201
+        condition: or
+
+  # ── DID resolution without auth ──────────────────────────
+  - method: GET
+    path:
+      - "{{BaseURL}}/v1/did/resolve/did:kyc:issuer:admin"
+      - "{{BaseURL}}/api/v1/did/resolve/did:kyc:issuer:admin"
+      - "{{BaseURL}}/did/resolve/did:kyc:issuer:admin"
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "did:kyc:"
+          - "application/did+json"
+          - "verificationMethod"
+        condition: or
+      - type: status
+        status:
+          - 200
+          - 201
+
+  # ── DID document manipulation (PUT without auth) ─────────
+  - method: PUT
+    path:
+      - "{{BaseURL}}/v1/did/resolve/did:kyc:issuer:admin"
+      - "{{BaseURL}}/api/v1/did/update/did:kyc:issuer:admin"
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "id": "did:kyc:issuer:evil",
+        "verificationMethod": [{
+          "id": "did:kyc:issuer:evil#keys-1",
+          "type": "Ed25519VerificationKey2020",
+          "controller": "did:kyc:issuer:evil",
+          "publicKeyMultibase": "z6MkhaXgBZDY9Z7WbQvRgTzQ9hZp1LzRqYq8nQ1a2b3c4d5e6f"
+        }]
+      }
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+          - 201
+          - 204
+
+  # ── Mass DID resolution / enumeration ────────────────────
+  - method: GET
+    path:
+      - "{{BaseURL}}/v1/did/resolve/"
+      - "{{BaseURL}}/v1/did/list"
+      - "{{BaseURL}}/v1/did/resolve?page=0&size=1000"
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "did:kyc:"
+          - "totalElements"
+          - "content"
+          - "verificationMethod"
+        condition: or
+      - type: status
+        status:
+          - 200
+
+  # ── CORS misconfiguration ────────────────────────────────
+  - method: OPTIONS
+    path:
+      - "{{BaseURL}}/v1/did/resolve/did:kyc:issuer:admin"
+    headers:
+      Origin: "https://evil.com"
+      Access-Control-Request-Method: GET
+    matchers:
+      - type: word
+        words:
+          - "Access-Control-Allow-Origin: https://evil.com"
+          - "Access-Control-Allow-Origin: *"
+        part: header
+        condition: or
+      - type: word
+        words:
+          - "Access-Control-Allow-Credentials: true"
+        part: header
+
+  # ── Injection attempts ───────────────────────────────────
+  - method: GET
+    path:
+      - "{{BaseURL}}/v1/did/resolve/did:kyc:'; DROP TABLE credentials;--"
+      - "{{BaseURL}}/v1/did/resolve/{{BaseURL}}"
+      - "{{BaseURL}}/v1/did/resolve/../../etc/passwd"
+    matchers:
+      - type: status
+        status:
+          - 500
+      - type: word
+        words:
+          - "syntax error"
+          - "SQL"
+          - "Uncaught"
+          - "Fatal error"
+          - "Internal Server Error"
+        condition: or
+
+  # ── Webfinger / DIDComm endpoint discovery ───────────────
+  - method: GET
+    path:
+      - "{{BaseURL}}/.well-known/did.json"
+      - "{{BaseURL}}/.well-known/did-configuration.json"
+      - "{{BaseURL}}/.well-known/did-communication"
+    matchers:
+      - type: word
+        words:
+          - "did:kyc:"
+          - "application/did+json"
+          - "serviceEndpoint"
+          - "DIDComm"
+        condition: or
