@@ -55,7 +55,7 @@ impl HPKE {
         ct: &HPKECiphertext,
         aad: &[u8],
     ) -> Result<Vec<u8>, String> {
-        let shared = Self::x25519_dh(secret_key, &ct.enc)?;
+        let shared = Self::x25519_dh(secret_key, ct.enc.as_slice())?;
 
         let cipher = Aes256Gcm::new_from_slice(&shared)
             .map_err(|e| format!("AES-GCM init: {}", e))?;
