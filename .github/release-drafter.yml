@@ -1,0 +1,156 @@
+# Release Drafter Configuration
+# ============================================================
+# Automatically drafts release notes from pull request labels
+
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+version-resolver:
+  major:
+    labels:
+      - "breaking"
+      - "major"
+  minor:
+    labels:
+      - "feature"
+      - "enhancement"
+      - "minor"
+  patch:
+    labels:
+      - "bug"
+      - "fix"
+      - "security"
+      - "perf"
+      - "patch"
+  default: patch
+
+categories:
+  - title: "Breaking Changes"
+    labels:
+      - "breaking"
+    description: "Changes that break backward compatibility"
+
+  - title: "New Features"
+    labels:
+      - "feature"
+      - "enhancement"
+    description: "New functionality and capabilities"
+
+  - title: "Bug Fixes"
+    labels:
+      - "bug"
+      - "fix"
+    description: "Bug and issue resolutions"
+
+  - title: "Security"
+    labels:
+      - "security"
+    description: "Security patches and hardening"
+
+  - title: "Performance"
+    labels:
+      - "performance"
+      - "perf"
+    description: "Performance improvements and optimizations"
+
+  - title: "Refactoring"
+    labels:
+      - "refactor"
+      - "refactoring"
+    description: "Code quality and structural improvements"
+
+  - title: "Documentation"
+    labels:
+      - "documentation"
+      - "docs"
+    description: "Documentation updates and additions"
+
+  - title: "Testing"
+    labels:
+      - "testing"
+      - "test"
+    description: "Test coverage and quality improvements"
+
+  - title: "Dependencies"
+    labels:
+      - "dependencies"
+      - "deps"
+    description: "Dependency updates"
+
+  - title: "CI/CD"
+    labels:
+      - "ci"
+      - "cd"
+      - "infrastructure"
+    description: "CI/CD pipeline and infrastructure changes"
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-ids: true
+
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  ## Contributors
+
+  $CONTRIBUTORS
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+  ## Installation
+
+  ```bash
+  # Kubernetes (Helm)
+  helm upgrade --install kyc-vault ./charts/kyc-vault --namespace kyc-vault --version v$RESOLVED_VERSION
+
+  # Docker
+  docker pull ghcr.io/$OWNER/$REPOSITORY:v$RESOLVED_VERSION
+  ```
+
+  ## Notes
+
+  - Review the [migration guide](https://docs.kyc-vault.com/migration/v$RESOLVED_VERSION) before upgrading
+  - Verify your configuration matches the new [schema](https://docs.kyc-vault.com/config/v$RESOLVED_VERSION)
+  - Report issues at https://github.com/$OWNER/$REPOSITORY/issues
+
+autolabeler:
+  - label: "documentation"
+    files:
+      - "docs/**/*"
+      - "*.md"
+  - label: "testing"
+    files:
+      - "tests/**/*"
+  - label: "ci"
+    files:
+      - ".github/**/*"
+      - ".gitlab-ci.yml"
+      - "Dockerfile*"
+  - label: "dependencies"
+    files:
+      - "Cargo.toml"
+      - "package.json"
+      - "requirements*.txt"
+      - "go.mod"
+      - "go.sum"
+  - label: "infrastructure"
+    files:
+      - "deploy/**/*"
+      - "charts/**/*"
+      - "terraform/**/*"
+  - label: "security"
+    files:
+      - "**/security/**/*"
+      - "**/vault/**/*"
+      - "**/tetragon/**/*"
+      - "**/cert-manager/**/*"
+
+replacers:
+  - search: '/(feat|fix|docs|test|chore|ci|refactor|perf|security)(\(.*\))?:\s?/g'
+    replace: ""
+
+exclude-labels:
+  - "skip-changelog"
+  - "duplicate"
+  - "invalid"
+  - "wontfix"
