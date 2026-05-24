@@ -1,0 +1,347 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KYC Vault AI Agent Tools",
+    "description": "OpenAPI specification for AI agent tool-calling interfaces used by LangGraph and CrewAI agents for KYC verification, fraud detection, and compliance reporting.",
+    "version": "1.0.0",
+    "x-agent-type": "tool-calling"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/classify-document": {
+      "post": {
+        "summary": "Classify identity document type and extract attributes",
+        "operationId": "classifyDocument",
+        "x-agent-tool": true,
+        "x-agent-description": "Classifies an identity document image into passport, drivers_license, national_id, utility_bill, or bank_statement. Returns extracted attributes, confidence score, and tamper detection results.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentClassificationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Classification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentClassificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimit"
+          }
+        }
+      }
+    },
+    "/liveness-check": {
+      "post": {
+        "summary": "Verify liveness from video frames",
+        "operationId": "checkLiveness",
+        "x-agent-tool": true,
+        "x-agent-description": "Performs passive and active liveness detection using a sequence of video frames. Returns liveness score, spoof probability, and face match status.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LivenessCheckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Liveness check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessCheckResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/fraud-detection": {
+      "post": {
+        "summary": "Assess fraud risk for a KYC submission",
+        "operationId": "detectFraud",
+        "x-agent-tool": true,
+        "x-agent-description": "Analyzes documents and behavioral data for fraud indicators including duplicates, synthetic identity patterns, and known forgery signatures.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FraudDetectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fraud assessment result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudDetectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/compliance-report": {
+      "post": {
+        "summary": "Generate AML/KYC compliance report",
+        "operationId": "generateComplianceReport",
+        "x-agent-tool": true,
+        "x-agent-description": "Generates a regulatory compliance report including AML screening, PEP check, sanctions list check, and jurisdiction-specific requirements.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplianceReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Compliance report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceReportResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/action": {
+      "post": {
+        "summary": "Execute an AI agent action",
+        "operationId": "executeAgentAction",
+        "x-agent-tool": true,
+        "x-agent-description": "Generic endpoint for AI agents to execute tool calls. Supports function calling pattern for LangGraph and CrewAI agents.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent_id": { "type": "string", "description": "Agent identifier" },
+                  "action": { "type": "string", "description": "Action to perform" },
+                  "parameters": { "type": "object", "description": "Action parameters" },
+                  "thread_id": { "type": "string", "description": "Conversation thread identifier for stateful agents" }
+                },
+                "required": ["agent_id", "action"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "result": { "type": "object" },
+                    "agent_id": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DocumentClassificationRequest": {
+        "type": "object",
+        "properties": {
+          "documentId": { "type": "string", "format": "uuid" },
+          "imageData": { "type": "string", "format": "byte", "maxLength": 10000000 },
+          "documentType": {
+            "type": "string",
+            "enum": ["passport", "drivers_license", "national_id", "utility_bill", "bank_statement"]
+          }
+        },
+        "required": ["documentId", "imageData"]
+      },
+      "DocumentClassificationResponse": {
+        "type": "object",
+        "properties": {
+          "documentId": { "type": "string" },
+          "predictedType": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "country": { "type": "string" },
+              "issuer": { "type": "string" },
+              "expiryDate": { "type": "string", "format": "date" },
+              "documentNumber": { "type": "string" }
+            }
+          },
+          "tamperScore": { "type": "number", "minimum": 0, "maximum": 1 },
+          "processingTimeMs": { "type": "integer" }
+        }
+      },
+      "LivenessCheckRequest": {
+        "type": "object",
+        "properties": {
+          "sessionId": { "type": "string", "format": "uuid" },
+          "frames": {
+            "type": "array",
+            "items": { "type": "string", "format": "byte" },
+            "minItems": 3,
+            "maxItems": 30
+          },
+          "challenge": { "type": "string" },
+          "response": { "type": "string" }
+        },
+        "required": ["sessionId", "frames", "challenge", "response"]
+      },
+      "LivenessCheckResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": { "type": "string" },
+          "live": { "type": "boolean" },
+          "confidence": { "type": "number" },
+          "spoofScore": { "type": "number" },
+          "faceMatch": { "type": "boolean" }
+        }
+      },
+      "FraudDetectionRequest": {
+        "type": "object",
+        "properties": {
+          "verificationId": { "type": "string", "format": "uuid" },
+          "applicantId": { "type": "string" },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "type": { "type": "string" },
+                "metadata": { "type": "object" }
+              }
+            }
+          },
+          "behavioralData": { "type": "object" }
+        },
+        "required": ["verificationId", "applicantId", "documents"]
+      },
+      "FraudDetectionResponse": {
+        "type": "object",
+        "properties": {
+          "verificationId": { "type": "string" },
+          "riskScore": { "type": "number" },
+          "riskLevel": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "indicators": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "recommendation": { "type": "string" }
+        }
+      },
+      "ComplianceReportRequest": {
+        "type": "object",
+        "properties": {
+          "reportId": { "type": "string" },
+          "applicantId": { "type": "string" },
+          "jurisdiction": { "type": "string" },
+          "documents": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        },
+        "required": ["reportId", "applicantId", "jurisdiction"]
+      },
+      "ComplianceReportResponse": {
+        "type": "object",
+        "properties": {
+          "reportId": { "type": "string" },
+          "amlStatus": { "type": "string", "enum": ["cleared", "pending", "flagged"] },
+          "pepStatus": { "type": "string", "enum": ["cleared", "pending", "flagged"] },
+          "sanctionsStatus": { "type": "string", "enum": ["cleared", "pending", "flagged"] },
+          "flags": { "type": "array", "items": { "type": "string" } },
+          "isCompliant": { "type": "boolean" },
+          "generatedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "Request validation failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean", "enum": [false] },
+                "error": { "type": "string" },
+                "details": { "type": "array", "items": { "type": "object" } }
+              }
+            }
+          }
+        }
+      },
+      "RateLimit": {
+        "description": "Rate limit exceeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": { "type": "string" },
+                "retryAfterMs": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
