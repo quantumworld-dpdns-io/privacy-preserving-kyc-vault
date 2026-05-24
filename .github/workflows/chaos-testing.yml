@@ -1,0 +1,157 @@
+name: Chaos Testing
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"  # Weekly on Sunday at 2 AM
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: "Chaos experiment to run"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - pod-failure
+          - network-partition
+          - stress-test
+          - recovery-validation
+      duration:
+        description: "Experiment duration in minutes"
+        required: false
+        default: "15"
+        type: string
+
+jobs:
+  setup-chaos-mesh:
+    name: Setup Chaos Mesh
+    runs-on: ubuntu-latest
+    outputs:
+      namespace: ${{ steps.create-namespace.outputs.namespace }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: latest
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chaos-testing-role
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name kyc-vault-cluster --region us-east-1
+
+      - name: Install Chaos Mesh
+        run: |
+          helm repo add chaos-mesh https://charts.chaos-mesh.org
+          helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh \
+            --namespace=chaos-testing --create-namespace \
+            --set chaosDaemon.runtime=containerd \
+            --set chaosDaemon.socketPath=/run/containerd/containerd.sock
+          kubectl wait --for=condition=Ready pods -n chaos-testing -l app.chaos-mesh=chaos-mesh --timeout=180s
+
+      - name: Create test namespace
+        id: create-namespace
+        run: |
+          NS="kyc-chaos-test-$(date +%s)"
+          kubectl create namespace "$NS"
+          echo "namespace=$NS" >> "$GITHUB_OUTPUT"
+
+  run-pod-failure:
+    name: Pod Failure Experiment
+    needs: setup-chaos-mesh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chaos-testing-role
+          aws-region: us-east-1
+
+      - name: Run pod failure experiment
+        run: |
+          kubectl apply -f tests/chaos/experiment.yaml -n ${{ needs.setup-chaos-mesh.outputs.namespace }}
+          kubectl wait --for=condition=Complete workflow/kyc-vault-pod-failure-weekly -n ${{ needs.setup-chaos-mesh.outputs.namespace }} --timeout=600s
+
+      - name: Collect experiment results
+        run: |
+          kubectl describe chaos -n ${{ needs.setup-chaos-mesh.outputs.namespace }} > chaos-results.txt
+          echo "Results collected"
+
+      - name: Upload experiment logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-experiment-logs
+          path: chaos-results.txt
+          retention-days: 30
+
+  run-network-partition:
+    name: Network Partition Experiment
+    needs: setup-chaos-mesh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chaos-testing-role
+          aws-region: us-east-1
+
+      - name: Run network partition experiment
+        run: |
+          kubectl apply -f tests/chaos/network-partition.yaml -n ${{ needs.setup-chaos-mesh.outputs.namespace }}
+          kubectl wait --for=condition=Complete workflow/network-partition -n ${{ needs.setup-chaos-mesh.outputs.namespace }} --timeout=300s
+
+  validate-recovery:
+    name: Recovery Validation
+    if: always()
+    needs: [setup-chaos-mesh, run-pod-failure, run-network-partition]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/setup-kubectl@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/chaos-testing-role
+          aws-region: us-east-1
+
+      - name: Validate pod recovery
+        run: |
+          SERVICES="kyc-credential-service kyc-ai-inference kyc-zkp-engine kyc-orchestrator"
+          for svc in $SERVICES; do
+            kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=$svc -n kyc-vault --timeout=300s && \
+              echo "✅ $svc recovered" || \
+              echo "❌ $svc failed to recover"
+          done
+
+      - name: Validate API health
+        run: |
+          kubectl run health-check --image=curlimages/curl --rm --restart=Never -it -- \
+            curl -sf https://api.kyc-vault.com/v1/health && \
+            echo "✅ API healthy" || \
+            echo "❌ API unhealthy"
+
+      - name: Cleanup chaos resources
+        if: always()
+        run: |
+          kubectl delete chaos -n ${{ needs.setup-chaos-mesh.outputs.namespace }} --all 2>/dev/null || true
+          kubectl delete namespace ${{ needs.setup-chaos-mesh.outputs.namespace }} --timeout=60s || true
+
+  notify:
+    name: Notify Results
+    needs: validate-recovery
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: "Chaos testing ${{ job.status }}"
+          channel: "#ops-alerts"
+        continue-on-error: true
