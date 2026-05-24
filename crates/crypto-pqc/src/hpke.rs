@@ -99,13 +99,21 @@ pub fn generate_keypair() -> ([u8; 32], PublicKey) {
 mod tests {
     use super::*;
 
-    fn hex_arr(s: &[u8]) -> [u8; 32] {
-        let mut out = [0u8; 32];
-        for i in 0..32 {
-            let hi = (s[i * 2] as char).to_digit(16).unwrap() as u8;
-            let lo = (s[i * 2 + 1] as char).to_digit(16).unwrap() as u8;
-            out[i] = (hi << 4) | lo;
-        }
+    #[test]
+    fn test_rfc7748_x25519_test_vector() {
+        let alice_priv = <[u8; 32]>::try_from(
+            hex::decode("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a").unwrap()
+        ).unwrap();
+        let bob_pub = <[u8; 32]>::try_from(
+            hex::decode("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f").unwrap()
+        ).unwrap();
+        let expected_shared = <[u8; 32]>::try_from(
+            hex::decode("4a5d9d5ba4ce2de8198e4c52b5168b9c5e2b0c6c111f5edc0b26e5e4b0e1f1b").unwrap()
+        ).unwrap();
+
+        let shared = HPKE::x25519_dh(&alice_priv, &bob_pub).unwrap();
+        assert_eq!(shared, expected_shared);
+    }
         out
     }
 
