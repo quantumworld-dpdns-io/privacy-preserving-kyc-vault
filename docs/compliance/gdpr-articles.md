@@ -96,7 +96,11 @@ curl -X GET https://api.kyc-vault.com/v1/credentials/550e8400-e29b-41d4-a716-446
 #   "credentialSubject": {
 #     "id": "did:kyc:subject:def456"
 #   },
-#   "proof": { ... }
+#   "proof": {
+#     "type": "NoirProof",
+#     "proofValue": "0x1a2b3c4d...",
+#     "publicInputs": ["0x5e6f7g8h..."]
+#   }
 # }
 ```
 
