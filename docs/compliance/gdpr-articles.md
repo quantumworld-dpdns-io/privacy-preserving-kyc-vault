@@ -58,9 +58,9 @@ curl -X GET https://api.kyc-vault.com/v1/credentials \
 |-------------|---------------|----------|
 | 17(1)(a) — Data no longer necessary | Credential expires automatically; configurable TTL | `VerifiableCredential.is_expired()` |
 | 17(1)(b) — Withdrawal of consent | Consent revocation triggers credential revocation | `PlatformConfig.consent_required` |
-| 17(1)(c) — Objection to processing | Subject can object via platform; triggers review workflow | — |
+| 17(1)(c) — Objection to processing | Subject can object via platform; triggers review workflow | `crates/core/src/kyc/workflow.rs:150` |
 | 17(1)(d) — Unlawful processing | Audit log review detects unauthorized processing | `docs/runbooks/key-compromise.md` |
-| 17(2) — Publicly disseminated data | N/A (credentials are not publicly disseminated) | — |
+| 17(2) — Publicly disseminated data | N/A (credentials are not publicly disseminated) | `docs/ARCHITECTURE.md:12` |
 | 17(3) — Exceptions (legal obligation) | Retention holds for legal/regulatory obligations | `docs/compliance/retention-policy.md` |
 
 Erasure API:
