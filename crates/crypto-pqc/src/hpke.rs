@@ -85,7 +85,11 @@ pub fn generate_keypair() -> ([u8; 32], PublicKey) {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     let scalar = Scalar::from_bytes_mod_order(bytes);
-    let public = PublicKey::from(&scalar);
+    let mut base_bytes = [0u8; 32];
+    base_bytes[0] = 9;
+    let basepoint = MontgomeryPoint(base_bytes);
+    let public_point = scalar * basepoint;
+    let public = PublicKey::from(public_point.to_bytes());
     (bytes, public)
 }
 
