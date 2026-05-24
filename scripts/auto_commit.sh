@@ -1,6 +1,6 @@
 #!/bin/bash
 # Enhanced Auto-Commit Agent
-count=10000
+count=10000000000000000
 while true; do
   # Check if there are changes to commit
   if [[ -n $(git status -s) ]]; then
