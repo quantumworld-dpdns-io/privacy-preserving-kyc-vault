@@ -55,11 +55,9 @@ impl HPKE {
         ct: &HPKECiphertext,
         aad: &[u8],
     ) -> Result<Vec<u8>, String> {
-        let static_secret = StaticSecret::from(*secret_key);
-        let ephemeral_pub = PublicKey::from(<[u8; 32]>::try_from(ct.enc.as_slice()).map_err(|_| "Invalid enc length")?);
-        let shared = static_secret.diffie_hellman(&ephemeral_pub);
+        let shared = Self::x25519_dh(secret_key, &ct.enc)?;
 
-        let cipher = Aes256Gcm::new_from_slice(shared.as_bytes())
+        let cipher = Aes256Gcm::new_from_slice(&shared)
             .map_err(|e| format!("AES-GCM init: {}", e))?;
 
         let nonce = Nonce::from_slice(&ct.nonce);
@@ -68,12 +66,27 @@ impl HPKE {
             .decrypt(nonce, ct.ciphertext.as_ref())
             .map_err(|e| format!("Decryption failed: {}", e))
     }
+
+    fn x25519_dh(secret_key: &[u8; 32], public_key_bytes: &[u8]) -> Result<[u8; 32], String> {
+        let mut clamped = *secret_key;
+        clamped[0] &= 248;
+        clamped[31] &= 127;
+        clamped[31] |= 64;
+        let scalar = Scalar::from_bytes_mod_order(clamped);
+        let pub_bytes: [u8; 32] =
+            <[u8; 32]>::try_from(public_key_bytes).map_err(|_| "Invalid public key length")?;
+        let point = MontgomeryPoint(pub_bytes);
+        let shared_point = scalar * point;
+        Ok(shared_point.to_bytes())
+    }
 }
 
-pub fn generate_keypair() -> (StaticSecret, PublicKey) {
-    let secret = StaticSecret::random_from_rng(OsRng);
-    let public = PublicKey::from(&secret);
-    (secret, public)
+pub fn generate_keypair() -> ([u8; 32], PublicKey) {
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    let scalar = Scalar::from_bytes_mod_order(bytes);
+    let public = PublicKey::from(&scalar);
+    (bytes, public)
 }
 
 #[cfg(test)]
