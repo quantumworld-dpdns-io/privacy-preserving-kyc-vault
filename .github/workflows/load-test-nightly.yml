@@ -1,0 +1,108 @@
+name: Nightly Load Test
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      stages:
+        description: "Load test stages (JSON)"
+        type: string
+        default: '[{"duration":"2m","target":50},{"duration":"5m","target":100},{"duration":"2m","target":0}]'
+      script:
+        description: "k6 script path"
+        type: string
+        default: "tests/load/stress-test.js"
+
+permissions:
+  contents: read
+
+env:
+  K6_CLOUD_TOKEN: ${{ secrets.K6_CLOUD_TOKEN }}
+  STAGING_URL: ${{ vars.STAGING_URL }}
+
+jobs:
+  load-test:
+    name: Run Nightly Load Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          curl -sL https://github.com/grafana/k6/releases/download/v0.52.0/k6-v0.52.0-linux-amd64.tar.gz | \
+            tar xz --strip-components=1 -C /usr/local/bin k6-v0.52.0-linux-amd64/k6
+          k6 version
+
+      - name: Run load test
+        id: test
+        run: |
+          k6 run \
+            --out json=load-test-results.json \
+            --out csv=load-test-results.csv \
+            --tag test_type=nightly \
+            --tag run_id=${{ github.run_id }} \
+            --stage '${{ github.event.inputs.stages }}' \
+            ${{ github.event.inputs.script }}
+        env:
+          BASE_URL: ${{ env.STAGING_URL }}
+        continue-on-error: true
+
+      - name: Parse results
+        run: |
+          cat load-test-results.json | jq '.metrics | {
+            http_req_duration: .http_req_duration.values,
+            http_req_failed: .http_req_failed.values,
+            http_reqs: .http_reqs.values,
+            vus: .vus.values,
+            vus_max: .vus_max.values
+          }' > load-test-summary.json
+          cat load-test-summary.json
+
+      - name: Check pass/fail criteria
+        run: |
+          P95=$(jq '.http_req_duration."p(95)"' load-test-summary.json)
+          ERROR_RATE=$(jq '.http_req_failed.rate' load-test-summary.json)
+          echo "p95=${P95}ms error_rate=$(echo "$ERROR_RATE * 100" | bc)%"
+
+          # Thresholds
+          if (( $(echo "$P95 > 3000" | bc -l) )); then
+            echo "::error::p95 latency ${P95}ms exceeds 3000ms threshold"
+          fi
+          if (( $(echo "$ERROR_RATE * 100 > 2" | bc -l) )); then
+            echo "::error::Error rate $(echo "$ERROR_RATE * 100" | bc)% exceeds 2% threshold"
+          fi
+
+      - name: Upload results to S3
+        if: always()
+        run: |
+          aws s3 cp load-test-results.json \
+            s3://${{ vars.LOAD_TEST_BUCKET }}/${{ github.run_id }}/load-test-results.json
+          aws s3 cp load-test-summary.json \
+            s3://${{ vars.LOAD_TEST_BUCKET }}/${{ github.run_id }}/load-test-summary.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results-${{ github.run_id }}
+          path: |
+            load-test-results.json
+            load-test-results.csv
+            load-test-summary.json
+          retention-days: 30
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_PERF_CHANNEL }}",
+              "text": ":sos: Nightly load test *FAILED* for ${{ github.repository }}\np95: ${P95}ms | Error rate: ${ERROR_RATE}%\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

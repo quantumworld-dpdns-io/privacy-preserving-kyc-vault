@@ -1,0 +1,135 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "website/**"
+  workflow_dispatch:
+    inputs:
+      deploy_env:
+        description: "Deployment environment"
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  DOCS_DIR: docs
+  BUILD_DIR: site
+
+jobs:
+  build:
+    name: Build Documentation Site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install mkdocs mkdocs-material mkdocs-minify-plugin mkdocs-redirects
+
+      - name: Check mkdocs.yml exists
+        id: check-mkdocs
+        run: |
+          if [ -f mkdocs.yml ]; then
+            echo "builder=mkdocs" >> "$GITHUB_OUTPUT"
+          elif [ -f package.json ] && grep -q docusaurus package.json; then
+            echo "builder=docusaurus" >> "$GITHUB_OUTPUT"
+          else
+            echo "builder=static" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build with MkDocs
+        if: steps.check-mkdocs.outputs.builder == 'mkdocs'
+        run: mkdocs build --strict
+
+      - name: Build with Docusaurus
+        if: steps.check-mkdocs.outputs.builder == 'docusaurus'
+        run: |
+          npm ci
+          npm run build
+        working-directory: website
+
+      - name: Build static site
+        if: steps.check-mkdocs.outputs.builder == 'static'
+        run: |
+          mkdir -p ${{ env.BUILD_DIR }}
+          cp -r ${{ env.DOCS_DIR }}/* ${{ env.BUILD_DIR }}/
+          echo "Static docs built"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.BUILD_DIR }}
+
+  deploy-staging:
+    name: Deploy to Staging Docs
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' || github.event.inputs.deploy_env == 'staging'
+    environment:
+      name: docs-staging
+      url: ${{ vars.DOCS_STAGING_URL }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+
+      - name: Deploy to S3 (staging)
+        run: |
+          aws s3 sync artifact s3://${{ vars.DOCS_STAGING_BUCKET }} --delete
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.DOCS_STAGING_CF_DISTRIBUTION }} \
+            --paths "/*"
+
+  deploy-production:
+    name: Deploy to Production Docs
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' || github.event.inputs.deploy_env == 'production'
+    environment:
+      name: docs-production
+      url: ${{ vars.DOCS_URL }}
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+
+      - name: Configure AWS credentials
+        if: vars.DOCS_BUCKET
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to S3 (production)
+        if: vars.DOCS_BUCKET
+        run: |
+          aws s3 sync artifact s3://${{ vars.DOCS_BUCKET }} --delete
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.DOCS_CF_DISTRIBUTION }} \
+            --paths "/*"

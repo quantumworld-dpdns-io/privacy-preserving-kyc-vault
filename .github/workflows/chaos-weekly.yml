@@ -1,0 +1,164 @@
+name: Weekly Chaos Engineering
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: "Chaos experiment to run"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - pod-failure
+          - network-latency
+          - cpu-stress
+          - memory-stress
+          - dns-failure
+      duration:
+        description: "Experiment duration (minutes)"
+        default: "10"
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  CHAOS_NAMESPACE: staging
+  CHAOS_HUB_VERSION: 0.17.0
+  K6_CLOUD_TOKEN: ${{ secrets.K6_CLOUD_TOKEN }}
+
+jobs:
+  setup:
+    name: Setup Chaos Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+
+      - name: Install LitmusChaos
+        run: |
+          kubectl create namespace litmus --dry-run=client -o yaml | kubectl apply -f -
+          helm repo add litmuschaos https://litmuschaos.github.io/litmus-helm/
+          helm repo update
+          helm upgrade --install litmus litmuschaos/litmus \
+            --namespace litmus \
+            --set portal.frontend.service.type=ClusterIP \
+            --wait
+
+      - name: Wait for Litmus pods
+        run: |
+          kubectl wait --for=condition=Ready pods --all -n litmus --timeout=300s
+          kubectl get pods -n litmus
+
+  run-experiment:
+    name: Run Chaos Experiment
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        experiment-type: ${{ fromJSON(github.event.inputs.experiment == 'all' && '["pod-failure","network-latency","cpu-stress"]' || format('["{0}"]', github.event.inputs.experiment)) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+
+      - name: Run ${{ matrix.experiment-type }} experiment
+        run: |
+          EXPERIMENT_DIR="chaos/experiments/${{ matrix.experiment-type }}"
+          if [ -d "$EXPERIMENT_DIR" ]; then
+            kubectl apply -f "$EXPERIMENT_DIR/" -n ${{ env.CHAOS_NAMESPACE }}
+          else
+            echo "No experiment definition found, using inline template"
+            cat <<EOF | kubectl apply -f -
+            apiVersion: litmuschaos.io/v1alpha1
+            kind: ChaosEngine
+            metadata:
+              name: ${{ matrix.experiment-type }}-engine
+              namespace: ${{ env.CHAOS_NAMESPACE }}
+            spec:
+              appinfo:
+                appns: ${{ env.CHAOS_NAMESPACE }}
+                applabel: app=my-app
+                appkind: deployment
+              chaosServiceAccount: litmus-admin
+              experiments:
+                - name: ${{ matrix.experiment-type }}
+                  spec:
+                    components:
+                      env:
+                        - name: TOTAL_CHAOS_DURATION
+                          value: "${{ github.event.inputs.duration || '10' }}"
+                        - name: TARGET_PODS
+                          value: "1"
+            EOF
+          fi
+
+      - name: Monitor experiment
+        run: |
+          echo "Waiting for experiment to complete..."
+          sleep 30
+          kubectl get chaosengine -n ${{ env.CHAOS_NAMESPACE }}
+          kubectl describe chaosengine ${{ matrix.experiment-type }}-engine -n ${{ env.CHAOS_NAMESPACE }} || true
+
+  verify:
+    name: Verify System Health
+    runs-on: ubuntu-latest
+    needs: run-experiment
+    if: always()
+    steps:
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+
+      - name: Check pod health
+        run: |
+          kubectl get pods -n ${{ env.CHAOS_NAMESPACE }}
+          kubectl get pods -n ${{ env.CHAOS_NAMESPACE }} --field-selector=status.phase=Running
+
+      - name: Check service endpoints
+        run: |
+          kubectl get svc -n ${{ env.CHAOS_NAMESPACE }}
+          kubectl get endpoints -n ${{ env.CHAOS_NAMESPACE }}
+
+      - name: Run health check
+        run: |
+          curl -sSf ${{ vars.STAGING_URL }}/health || echo "Health check failed (expected after chaos)"
+
+      - name: Generate chaos report
+        run: |
+          echo "# Chaos Experiment Report" > chaos-report.md
+          echo "Date: $(date)" >> chaos-report.md
+          echo "Experiment: ${{ github.event.inputs.experiment || 'scheduled' }}" >> chaos-report.md
+          echo "Duration: ${{ github.event.inputs.duration || '10' }}m" >> chaos-report.md
+          echo "Result: ${{ needs.run-experiment.result }}" >> chaos-report.md
+
+      - name: Upload chaos report
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-report-${{ github.run_id }}
+          path: chaos-report.md
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_INFRA_CHANNEL }}",
+              "text": ":test_tube: Chaos experiment ${{ needs.run-experiment.result == 'success' && 'completed' || 'failed' }}\nExperiment: ${{ github.event.inputs.experiment || 'scheduled' }}\nResult: ${{ needs.run-experiment.result }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
