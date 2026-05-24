@@ -1,0 +1,154 @@
+# Fermyon Spin Application Manifest - KYC Vault Wasm Services
+# ============================================================
+spin_version = "3.0"
+name = "kyc-vault-spin"
+version = "1.0.0"
+description = "KYC Vault WebAssembly microservices deployed via Fermyon Spin"
+authors = ["KYC Vault Team"]
+trigger = { type = "http", base = "/" }
+
+# ============================================================
+# Runtime Configuration
+# ============================================================
+[application.router]
+assets = "static"
+
+[application.features]
+wasi_fileio = true
+key_value = true
+sqlite = true
+redis = true
+
+# ============================================================
+# HTTP Trigger Components
+# ============================================================
+
+[[trigger.http]]
+route = "/api/v1/credential/verify"
+component = "credential-verifier"
+description = "Verifies a credential using Wasm-based rules engine"
+
+[[trigger.http]]
+route = "/api/v1/credential/analyze"
+component = "credential-analyzer"
+description = "Analyzes credential attributes and extracts structured data"
+
+[[trigger.http]]
+route = "/api/v1/credential/schema"
+component = "schema-validator"
+description = "Validates credential against JSON schema"
+
+[[trigger.http]]
+route = "/api/v1/health"
+component = "health-check"
+description = "Service health check endpoint"
+
+[[trigger.http]]
+route = "/api/v1/metrics"
+component = "metrics-exporter"
+description = "Prometheus metrics export"
+
+# ============================================================
+# Redis Trigger Components
+# ============================================================
+
+[[trigger.redis]]
+address = "redis://localhost:6379"
+channel = "credential.verify"
+component = "redis-credential-worker"
+description = "Redis-triggered credential verification worker"
+
+[[trigger.redis]]
+address = "redis://localhost:6379"
+channel = "credential.analyze"
+component = "redis-credential-analyzer"
+description = "Redis-triggered credential analysis worker"
+
+# ============================================================
+# Component Definitions
+# ============================================================
+
+[component.credential-verifier]
+description = "WebAssembly credential verification module"
+source = "target/wasm32-wasi/release/credential_verifier.wasm"
+key_value_stores = ["credential-store"]
+[component.credential-verifier.trigger.http]
+route = "/api/v1/credential/verify"
+executor = "wasi"
+[component.credential-verifier.environment]
+RUST_LOG = "info"
+DB_URL = "sqlite:///data/credentials.db"
+[component.credential-verifier.resources]
+memory = "64 MB"
+cpu = "0.5"
+[component.credential-verifier.variables]
+auth_token = { required = true, source = "env" }
+
+[component.credential-analyzer]
+description = "Credential attribute extraction and analysis"
+source = "target/wasm32-wasi/release/credential_analyzer.wasm"
+[component.credential-analyzer.trigger.http]
+route = "/api/v1/credential/analyze"
+executor = "wasi"
+[component.credential-analyzer.environment]
+MODEL_PATH = "/models/attribute-extractor.onnx"
+
+[component.schema-validator]
+description = "JSON Schema validation for credentials"
+source = "target/wasm32-wasi/release/schema_validator.wasm"
+[component.schema-validator.trigger.http]
+route = "/api/v1/credential/schema"
+executor = "wasi"
+[component.schema-validator.environment]
+SCHEMA_PATH = "/schemas/credentials"
+
+[component.health-check]
+description = "Health check endpoint"
+source = "target/wasm32-wasi/release/health.wasm"
+[component.health-check.trigger.http]
+route = "/api/v1/health"
+executor = "wasi"
+
+[component.metrics-exporter]
+description = "Prometheus metrics endpoint"
+source = "target/wasm32-wasi/release/metrics.wasm"
+[component.metrics-exporter.trigger.http]
+route = "/api/v1/metrics"
+executor = "wasi"
+
+[component.redis-credential-worker]
+description = "Redis-triggered credential verification"
+source = "target/wasm32-wasi/release/redis_worker.wasm"
+[component.redis-credential-worker.trigger.redis]
+channel = "credential.verify"
+[component.redis-credential-worker.environment]
+RUST_LOG = "debug"
+
+[component.redis-credential-analyzer]
+description = "Redis-triggered credential analysis"
+source = "target/wasm32-wasi/release/redis_analyzer.wasm"
+[component.redis-credential-analyzer.trigger.redis]
+channel = "credential.analyze"
+
+# ============================================================
+# State Store Configuration
+# ============================================================
+[key_value_store.default]
+type = "sqlite"
+path = "/data/spin.db"
+
+[key_value_store.credential-store]
+type = "redis"
+url = "redis://localhost:6379"
+
+# ============================================================
+# SQLite Database Configuration
+# ============================================================
+[sqlite_database.default]
+path = "/data/spin.db"
+
+# ============================================================
+# Allowed HTTP Hosts
+# ============================================================
+[application.allowed_http_hosts]
+hosts = ["https://api.kyc-vault.com", "https://auth.kyc-vault.com"]
