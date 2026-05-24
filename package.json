@@ -33,5 +33,23 @@
     "ts-node": "^10.9.0",
     "tslib": "^2.8.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "main": "commitlint.config.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "lib": "lib",
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quantumworld-dpdns-io/privacy-preserving-kyc-vault.git"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/quantumworld-dpdns-io/privacy-preserving-kyc-vault/issues"
+  },
+  "homepage": "https://github.com/quantumworld-dpdns-io/privacy-preserving-kyc-vault#readme"
 }
