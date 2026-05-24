@@ -226,10 +226,22 @@ impl FlightSqlService for FlightSqlServiceImpl {
 
     async fn do_action(
         &self,
-        _action: Action,
+        action: Action,
         _request: Request<Streaming<arrow_flight::Result>>,
     ) -> FlightResult<Response<Streaming<arrow_flight::Result>>> {
-        unimplemented!("Actions not implemented")
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+        if action.r#type == "health_check" {
+            let res = arrow_flight::Result {
+                body: "ok".into(),
+            };
+            tx.send(Ok(res)).await.map_err(|e| Status::internal(e.to_string()))?;
+        } else {
+            return Err(Status::unimplemented(format!("Unknown action: {}", action.r#type)));
+        }
+
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as _))
     }
 
     async fn list_flights(
