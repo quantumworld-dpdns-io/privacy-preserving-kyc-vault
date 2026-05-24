@@ -1,0 +1,101 @@
+groups:
+  - name: pqc_operations
+    interval: 30s
+    rules:
+      - alert: PQCKeyRotationOverdue
+        expr: time() - pqc_key_last_rotation_timestamp_seconds > 2592000
+        labels:
+          severity: warning
+          team: crypto
+        annotations:
+          summary: "PQC key rotation is overdue"
+          description: "Key {{ $labels.key_id }} was last rotated {{ $value | humanizeDuration }} ago. Threshold is 30 days."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/pqc-key-rotation"
+
+      - alert: PQCKeyGenerationFailure
+        expr: rate(pqc_key_generation_errors_total[5m]) / rate(pqc_key_generation_requests_total[5m]) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+          team: crypto
+        annotations:
+          summary: "PQC key generation failure rate above 2%"
+          description: "Key generation failure rate for algorithm {{ $labels.algorithm }} is {{ $value | humanizePercentage }}."
+
+      - alert: PQCEncapsulationFailure
+        expr: rate(pqc_encapsulation_errors_total[5m]) / rate(pqc_encapsulation_requests_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          team: crypto
+        annotations:
+          summary: "PQC KEM encapsulation failure rate above 1%"
+          description: "Encapsulation failure rate for algorithm {{ $labels.algorithm }} is {{ $value | humanizePercentage }}."
+
+      - alert: PQCDecapsulationFailure
+        expr: rate(pqc_decapsulation_errors_total[5m]) / rate(pqc_decapsulation_requests_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          team: crypto
+        annotations:
+          summary: "PQC KEM decapsulation failure rate above 1%"
+          description: "Decapsulation failure rate for algorithm {{ $labels.algorithm }} is {{ $value | humanizePercentage }}."
+
+      - alert: PQCSignatureVerificationFailure
+        expr: rate(pqc_signature_verification_errors_total[5m]) / rate(pqc_signature_verification_requests_total[5m]) > 0.03
+        for: 5m
+        labels:
+          severity: warning
+          team: crypto
+        annotations:
+          summary: "PQC signature verification failure rate above 3%"
+          description: "Verification failure rate for algorithm {{ $labels.algorithm }} is {{ $value | humanizePercentage }}."
+
+      - alert: PQCHybridModeFallback
+        expr: pqc_hybrid_mode{status="fallback"} > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: crypto
+        annotations:
+          summary: "PQC hybrid mode has fallen back to classical crypto"
+          description: "Hybrid mode for endpoint {{ $labels.endpoint }} using fallback path."
+
+      - alert: PQCOperationLatencyHigh
+        expr: histogram_quantile(0.95, rate(pqc_operation_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: crypto
+        annotations:
+          summary: "PQC operation p95 latency above 1s"
+          description: "Operation {{ $labels.operation }} for algorithm {{ $labels.algorithm }} p95 is {{ $value }}s."
+
+      - alert: PQCAlgorithmDeprecationApproaching
+        expr: pqc_algorithm_deprecation_timestamp - time() < 604800
+        labels:
+          severity: info
+          team: crypto
+        annotations:
+          summary: "PQC algorithm deprecation approaching"
+          description: "Algorithm {{ $labels.algorithm }} will be deprecated in {{ $value | humanizeDuration }}."
+
+      - alert: PQCKeyCountLow
+        expr: pqc_available_key_count < 10
+        labels:
+          severity: warning
+          team: crypto
+        annotations:
+          summary: "PQC key pool running low"
+          description: "Only {{ $value }} keys available for algorithm {{ $labels.algorithm }}."
+
+      - alert: PQCkemPerformanceDegraded
+        expr: rate(pqc_kem_operations_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: crypto
+        annotations:
+          summary: "PQC KEM operation rate very high"
+          description: "KEM operation rate is {{ $value }} ops/s. May need to rate limit."
