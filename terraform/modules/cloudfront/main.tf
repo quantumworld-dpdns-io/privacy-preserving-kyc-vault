@@ -1,54 +1,170 @@
-locals {
-  s3_origin_id = "${var.name_prefix}-s3-origin"
+# CloudFront Module
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+    acm = {
+      source  = "hashicorp/acm"
+      version = "~> 2.0"
+    }
+    route53 = {
+      source  = "hashicorp/route53"
+      version = "~> 3.0"
+    }
+  }
 }
 
-resource "aws_cloudfront_distribution" "main" {
-  enabled             = var.enabled
-  is_ipv6_enabled     = var.ipv6_enabled
-  price_class         = var.price_class
-  comment             = "${var.name_prefix} CloudFront distribution"
-  default_root_object = var.default_root_object
-  aliases             = var.aliases
-  http_version        = var.http_version
+variable "domain_name" {
+  description = "Domain name for the CloudFront distribution"
+  type        = string
+}
 
+variable "subdomain" {
+  description = "Subdomain for the CloudFront distribution (e.g., www)"
+  type        = string
+  default     = ""
+}
+
+variable "origin_domain_name" {
+  description = "Domain name of the origin (S3 bucket, ALB, etc.)"
+  type        = string
+}
+
+variable "origin_path" {
+  description = "Path in the origin to serve content from"
+  type        = string
+  default     = ""
+}
+
+variable "viewer_certificate_arn" {
+  description = "ARN of the ACM certificate for viewer HTTPS"
+  type        = string
+}
+
+variable "default_root_object" {
+  description = "Default root object to serve"
+  type        = string
+  default     = "index.html"
+}
+
+variable "price_class" {
+  description = "Price class for CloudFront distribution"
+  type        = string
+  default     = "PriceClass_100"
+}
+
+variable "enabled" {
+  description = "Whether the distribution is enabled"
+  type        = bool
+  default     = true
+}
+
+variable "tags" {
+  description = "Tags to apply to the distribution"
+  type        = map(string)
+  default     = {}
+}
+
+variable "waf_web_acl_arn" {
+  description = "ARN of the WAF Web ACL to associate with the distribution"
+  type        = string
+  default     = ""
+}
+
+# ACM Certificate (if we need to create one, otherwise use provided ARN)
+resource "aws_acm_certificate" "default" {
+  count = var.viewer_certificate_arn == "" ? 1 : 0
+  domain_name       = var.subdomain != "" ? "${var.subdomain}.${var.domain_name}" : var.domain_name
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# DNS validation for ACM certificate
+resource "aws_route53_record" "cert_validation" {
+  count = var.viewer_certificate_arn == "" ? length(aws_acm_certificate.default[*].domain_validation_options) : 0
+
+  zone_id = data.aws_route53_zone.selected.zone_id
+  name    = element(aws_acm_certificate.default[*].domain_validation_options, count.index).resource_record_name
+  type    = element(aws_acm_certificate.default[*].domain_validation_options, count.index).resource_record_type
+  ttl     = 60
+  records = [element(aws_acm_certificate.default[*].domain_validation_options, count.index).resource_record_value]
+}
+
+# Certificate validation
+resource "aws_acm_certificate_validation" "default" {
+  count = var.viewer_certificate_arn == "" ? length(aws_acm_certificate.default[*].domain_validation_options) : 0
+  certificate_arn         = element(aws_acm_certificate.default[*].arn, count.index)
+  validation_record_fqdns = [element(aws_route53_record.cert_validation[*].fqdn, count.index)]
+}
+
+# Data source for Route53 zone
+data "aws_route53_zone" "selected" {
+  count = var.viewer_certificate_arn == "" ? 1 : 0
+  name         = "${var.domain_name}."
+  private_zone = false
+}
+
+# CloudFront Distribution
+resource "aws_cloudfront_distribution" "this" {
   origin {
-    domain_name = var.s3_bucket_domain_name
-    origin_id   = local.s3_origin_id
+    domain_name = var.origin_domain_name
+    origin_id   = "origin-${var.origin_domain_name}"
 
-    s3_origin_config {
-      origin_access_identity = aws_cloudfront_origin_access_identity.main.cloudfront_access_identity_path
+    origin_path = var.origin_path
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1", "TLSv1.1", "TLSv1.2"]
     }
   }
 
-  dynamic "origin" {
-    for_each = var.custom_origins
-    content {
-      domain_name = origin.value.domain_name
-      origin_id   = origin.value.origin_id
+  enabled             = var.enabled
+  is_ipv6_enabled     = true
+  default_root_object = var.default_root_object
+  price_class         = var.price_class
 
-      custom_origin_config {
-        origin_protocol_policy = lookup(origin.value, "origin_protocol_policy", "https-only")
-        origin_ssl_protocols   = lookup(origin.value, "origin_ssl_protocols", ["TLSv1.2"])
-        http_port              = lookup(origin.value, "http_port", 80)
-        https_port             = lookup(origin.value, "https_port", 443)
-      }
+  aliases = [
+    var.subdomain != "" ? "${var.subdomain}.${var.domain_name}" : var.domain_name
+  ]
 
-      dynamic "custom_header" {
-        for_each = lookup(origin.value, "custom_headers", [])
-        content {
-          name  = custom_header.value.name
-          value = custom_header.value.value
-        }
-      }
+  viewer_certificate {
+    acm_certificate_arn = var.viewer_certificate_arn != "" ? var.viewer_certificate_arn : element(aws_acm_certificate_validation.default[*].certificate_arn, 0)
+    ssl_support_method  = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
     }
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 404
+    response_page_path    = "/404.html"
+  }
+
+  custom_error_response {
+    error_code            = 403
+    response_code         = 403
+    response_page_path    = "/403.html"
   }
 
   default_cache_behavior {
-    target_origin_id       = local.s3_origin_id
+    target_origin_id = "origin-${var.origin_domain_name}"
     viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD", "OPTIONS"]
-    compress               = true
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    compress         = true
 
     forwarded_values {
       query_string = false
@@ -57,117 +173,44 @@ resource "aws_cloudfront_distribution" "main" {
       }
     }
 
-    min_ttl     = 0
-    default_ttl = var.default_ttl
-    max_ttl     = var.max_ttl
+    min_ttl                = 0
+    default_ttl            = 86400
+    max_ttl                = 31536000
   }
 
-  dynamic "ordered_cache_behavior" {
-    for_each = var.ordered_cache_behaviors
-    content {
-      path_pattern           = ordered_cache_behavior.value.path_pattern
-      target_origin_id       = ordered_cache_behavior.value.target_origin_id
-      viewer_protocol_policy = lookup(ordered_cache_behavior.value, "viewer_protocol_policy", "redirect-to-https")
-      allowed_methods        = lookup(ordered_cache_behavior.value, "allowed_methods", ["GET", "HEAD", "OPTIONS"])
-      cached_methods         = lookup(ordered_cache_behavior.value, "cached_methods", ["GET", "HEAD", "OPTIONS"])
-      compress               = lookup(ordered_cache_behavior.value, "compress", true)
-
-      forwarded_values {
-        query_string = lookup(ordered_cache_behavior.value, "forward_query_string", false)
-        cookies {
-          forward = lookup(ordered_cache_behavior.value, "cookies_forward", "none")
-        }
-      }
-
-      min_ttl     = lookup(ordered_cache_behavior.value, "min_ttl", 0)
-      default_ttl = lookup(ordered_cache_behavior.value, "default_ttl", 3600)
-      max_ttl     = lookup(ordered_cache_behavior.value, "max_ttl", 86400)
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
     }
   }
 
-  dynamic "custom_error_response" {
-    for_each = var.custom_error_responses
+  # WAF association (if provided)
+  dynamic "web_acl_id" {
+    for_each = var.waf_web_acl_arn != "" ? [var.waf_web_acl_arn] : []
     content {
-      error_code            = custom_error_response.value.error_code
-      response_code         = lookup(custom_error_response.value, "response_code", null)
-      response_page_path    = lookup(custom_error_response.value, "response_page_path", null)
-      error_caching_min_ttl = lookup(custom_error_response.value, "error_caching_min_ttl", null)
+      web_acl_id = web_acl_id.value
     }
   }
 
-  logging_config {
-    bucket          = var.logging_bucket_domain
-    prefix          = var.logging_prefix
-    include_cookies = false
-  }
+  tags = var.tags
 
-  dynamic "geo_restriction" {
-    for_each = length(var.geo_restrictions) > 0 ? [var.geo_restrictions] : []
-    content {
-      restriction_type = geo_restriction.value.type
-      locations        = geo_restriction.value.locations
-    }
-  }
-
-  viewer_certificate {
-    acm_certificate_arn      = var.acm_certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = var.minimum_protocol_version
-  }
-
-  web_acl_id = var.web_acl_arn
-
-  retain_on_delete = var.retain_on_delete
-
-  tags = {
-    Name = "${var.name_prefix}-cloudfront"
-  }
+  depends_on = [
+    var.viewer_certificate_arn == "" ? aws_acm_certificate_validation.default : null,
+    var.viewer_certificate_arn == "" ? aws_route53_record.cert_validation : null
+  ]
 }
 
-resource "aws_cloudfront_origin_access_identity" "main" {
-  comment = "${var.name_prefix} OAI"
+output "distribution_id" {
+  description = "ID of the CloudFront distribution"
+  value       = aws_cloudfront_distribution.this.id
 }
 
-resource "aws_s3_bucket_policy" "cloudfront" {
-  count  = var.attach_s3_bucket_policy ? 1 : 0
-  bucket = var.s3_bucket_id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "AllowCloudFrontServicePrincipal"
-        Effect = "Allow"
-        Principal = {
-          AWS = aws_cloudfront_origin_access_identity.main.iam_arn
-        }
-        Action   = "s3:GetObject"
-        Resource = "${var.s3_bucket_arn}/*"
-      }
-    ]
-  })
+output "distribution_domain_name" {
+  description = "Domain name of the CloudFront distribution"
+  value       = aws_cloudfront_distribution.this.domain_name
 }
 
-resource "aws_cloudfront_cache_policy" "main" {
-  count = var.create_cache_policy ? 1 : 0
-
-  name        = "${var.name_prefix}-custom-cache"
-  comment     = "Custom cache policy for ${var.name_prefix}"
-  default_ttl = var.default_ttl
-  max_ttl     = var.max_ttl
-  min_ttl     = 0
-
-  parameters_in_cache_key_and_forwarded_to_origin {
-    cookies_config {
-      cookie_behavior = "none"
-    }
-    headers_config {
-      header_behavior = "none"
-    }
-    query_strings_config {
-      query_string_behavior = "none"
-    }
-    enable_accept_encoding_brotli = true
-    enable_accept_encoding_gzip   = true
-  }
+output "distribution_arn" {
+  description = "ARN of the CloudFront distribution"
+  value       = aws_cloudfront_distribution.this.arn
 }
