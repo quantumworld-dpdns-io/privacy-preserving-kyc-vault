@@ -1,0 +1,135 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-seccomp
+  annotations:
+    policies.kyverno.io/title: Restrict Seccomp Profile
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires all containers to use a seccomp profile. The default is
+      RuntimeDefault which uses the container runtime's default seccomp
+      profile. For sensitive workloads, Localhost profiles may be required.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: seccomp-profile-required
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          A seccomp profile is required. Set securityContext.seccompProfile.type
+          to 'RuntimeDefault' or 'Localhost'.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault | Localhost
+            initContainers:
+              - securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault | Localhost
+            ephemeralContainers:
+              - securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault | Localhost
+
+    - name: seccomp-localhost-audit
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: >-
+          KYC Vault pods with access to credential data must use a custom
+          Localhost seccomp profile that restricts non-essential syscalls.
+          See deploy/seccomp/kyc-vault-profile.json for the allowed profile.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  seccompProfile:
+                    type: Localhost
+            initContainers:
+              - securityContext:
+                  seccompProfile:
+                    type: Localhost
+
+    - name: seccomp-localhost-profile-path
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: >-
+          When using Localhost seccomp profile, the localhostProfile field
+          must specify a valid profile path.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  seccompProfile:
+                    type: Localhost
+                    localhostProfile: "*"
+            initContainers:
+              - securityContext:
+                  seccompProfile:
+                    type: Localhost
+                    localhostProfile: "*"
+
+    - name: seccomp-unconfined-forbidden
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Unconfined seccomp profile (Unconfined) is not allowed. Set
+          seccompProfile.type to 'RuntimeDefault' or 'Localhost'.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].securityContext.seccompProfile.type }}"
+                operator: AnyEquals
+                value: Unconfined
+              - key: "{{ request.object.spec.initContainers[].securityContext.seccompProfile.type }}"
+                operator: AnyEquals
+                value: Unconfined
+              - key: "{{ request.object.spec.ephemeralContainers[].securityContext.seccompProfile.type }}"
+                operator: AnyEquals
+                value: Unconfined
+
+    - name: seccomp-global-default
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      preconditions:
+        any:
+          - key: "{{ request.object.metadata.labels.\"pod-security.kubernetes.io/enforce\" || '' }}"
+            operator: NotEquals
+            value: ""
+      validate:
+        message: >-
+          Namespaces must have a pod security enforce level that includes
+          seccomp profile requirements (baseline or restricted).
+        pattern:
+          metadata:
+            labels:
+              pod-security.kubernetes.io/enforce: baseline | restricted

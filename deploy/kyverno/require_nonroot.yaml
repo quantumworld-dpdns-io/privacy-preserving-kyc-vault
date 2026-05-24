@@ -1,0 +1,139 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-nonroot-user
+  annotations:
+    policies.kyverno.io/title: Require Non-Root User
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires containers to run as non-root users. This prevents
+      privilege escalation and limits the blast radius of container
+      compromise. Both runAsNonRoot and runAsUser must be configured.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Containers must run as non-root user. Set
+          securityContext.runAsNonRoot to true.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsNonRoot: true
+            initContainers:
+              - securityContext:
+                  runAsNonRoot: true
+            ephemeralContainers:
+              - securityContext:
+                  runAsNonRoot: true
+
+    - name: run-as-user-id
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Containers must specify a numeric runAsUser in the range 10000-65535.
+          Using root (UID 0) or reserved system UIDs is not permitted.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsUser: "10000-65535"
+            initContainers:
+              - securityContext:
+                  runAsUser: "10000-65535"
+            ephemeralContainers:
+              - securityContext:
+                  runAsUser: "10000-65535"
+
+    - name: run-as-group-id
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Containers must specify a numeric runAsGroup in the range 10000-65535.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsGroup: "10000-65535"
+            initContainers:
+              - securityContext:
+                  runAsGroup: "10000-65535"
+            ephemeralContainers:
+              - securityContext:
+                  runAsGroup: "10000-65535"
+
+    - name: fs-group
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Pod must specify fsGroup in the range 10000-65535 for volume
+          permission management.
+        pattern:
+          spec:
+            securityContext:
+              fsGroup: "10000-65535"
+
+    - name: root-user-forbidden
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Running as root (UID 0) is strictly forbidden. Set
+          runAsNonRoot: true and runAsUser to a value >= 10000.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].securityContext.runAsUser }}"
+                operator: AnyEquals
+                value: 0
+              - key: "{{ request.object.spec.securityContext.runAsUser }}"
+                operator: Equals
+                value: 0
+
+    - name: kyc-vault-nonroot-enforce
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: >-
+          KYC Vault pods must run as non-root with UID/GID 10001.
+          This is enforced for all credential processing workloads.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 10001
+                  runAsGroup: 10001
+            securityContext:
+              fsGroup: 10001

@@ -1,0 +1,141 @@
+# Apache Gravitino Catalog Configuration
+# Unified catalog for Iceberg + Hive metadata in the KYC data lake.
+
+catalogs:
+  # ── Iceberg Catalog ──────────────────────────────────────────
+  - name: kyc_iceberg
+    type: iceberg
+    comment: "KYC Lakehouse Iceberg tables (verification, audit, analytics)"
+    properties:
+      # Catalog backend
+      catalog-backend: "rest"
+      uri: "http://polaris:8181/api/catalog"
+      warehouse: "kyc-lakehouse"
+      credential: "gravitino-svc:${GRAVITINO_ICEBERG_SECRET}"
+
+      # Storage configuration
+      io-impl: "org.apache.iceberg.aws.s3.S3FileIO"
+      s3.endpoint: "${MINIO_ENDPOINT:-http://minio:9000}"
+      s3.access-key-id: "${MINIO_ACCESS_KEY}"
+      s3.secret-access-key: "${MINIO_SECRET_KEY}"
+      s3.path-style-access: "true"
+      s3.region: "us-east-1"
+
+      # Table defaults
+      write.format.default: "parquet"
+      write.parquet.compression-codec: "zstd"
+      write.target-file-size-bytes: "268435456"
+      write.distribution-mode: "hash"
+      format-version: "2"
+      commit.manifest-merge.enabled: "true"
+      commit.manifest-merge.min-count: "10"
+      history.expire.max-snapshot-age-ms: "604800000"
+      snapshot-retention.max-snapshot-count: "100"
+
+      # Performance
+      read.split.target-size: "268435456"
+      read.split.planning-lookup-enabled: "true"
+      write.metadata.metrics.default: "truncate(16)"
+
+    tables:
+      - name: verification_events
+        namespace: kyc_lakehouse
+        partition-by: event_date
+        schema-file: /etc/gravitino/schemas/verification_events.avsc
+
+      - name: credential_audit
+        namespace: kyc_lakehouse
+        partition-by: audit_date
+        schema-file: /etc/gravitino/schemas/credential_audit.avsc
+
+      - name: platform_analytics
+        namespace: kyc_lakehouse
+        partition-by: metric_month
+        schema-file: /etc/gravitino/schemas/platform_analytics.avsc
+
+  # ── Hive Catalog ─────────────────────────────────────────────
+  - name: kyc_hive
+    type: hive
+    comment: "Hive tables for legacy reporting and ORC-based staging"
+    properties:
+      metastore.uris: "thrift://hive-metastore:9083"
+      metastore.database: "kyc_vault"
+      hive.metastore.client.socket.timeout: "60"
+      hive.metastore.client.connect.retry.limit: "3"
+
+      # Storage
+      warehouse: "s3a://kyc-vault-raw/hive-warehouse/"
+      s3.endpoint: "${MINIO_ENDPOINT:-http://minio:9000}"
+      s3.access-key-id: "${MINIO_ACCESS_KEY}"
+      s3.secret-access-key: "${MINIO_SECRET_KEY}"
+      s3.path-style-access: "true"
+      s3.ssl.enabled: "false"
+
+      # Table defaults
+      hive.exec.orc.compression.strategy: "COMPRESSION"
+      hive.exec.orc.default.compress: "ZSTD"
+      hive.exec.dynamic.partition: "true"
+      hive.exec.dynamic.partition.mode: "nonstrict"
+      hive.mapred.mode: "nonstrict"
+      hive.optimize.metadataonly: "true"
+
+    tables:
+      - name: raw_events
+        namespace: default
+        format: ORC
+        partition-by: event_date
+
+      - name: staging_credentials
+        namespace: default
+        format: ORC
+        partition-by: load_date
+
+  # ── Cross-Catalog Views ──────────────────────────────────────
+  - name: kyc_global
+    type: federated
+    comment: "Federated view across Iceberg and Hive catalogs"
+    properties:
+      # Allows Trino/Spark to query across catalogs transparently
+      query-engine: "trino"
+      default-catalog: "kyc_iceberg"
+    views:
+      - name: global_credential_summary
+        namespace: kyc_lakehouse
+        sql: |
+          SELECT
+            v.*,
+            a.audit_action,
+            a.risk_score AS audit_risk_score
+          FROM kyc_iceberg.kyc_lakehouse.verification_events v
+          LEFT JOIN kyc_iceberg.kyc_lakehouse.credential_audit a
+            ON v.credential_id = a.credential_id
+
+# ── Access Control ─────────────────────────────────────────────
+
+access:
+  # Service principals
+  - principal: trino_service
+    privileges:
+      - catalog: kyc_iceberg
+        actions: [TABLE_READ, TABLE_WRITE, TABLE_CREATE, NAMESPACE_CREATE]
+      - catalog: kyc_hive
+        actions: [TABLE_READ]
+
+  - principal: spark_service
+    privileges:
+      - catalog: kyc_iceberg
+        actions: [TABLE_READ, TABLE_WRITE, TABLE_CREATE]
+      - catalog: kyc_hive
+        actions: [TABLE_READ, TABLE_WRITE]
+
+  - principal: airflow_service
+    privileges:
+      - catalog: kyc_iceberg
+        actions: [TABLE_READ, TABLE_WRITE]
+
+  - principal: analyst_users
+    privileges:
+      - catalog: kyc_iceberg
+        actions: [TABLE_READ]
+      - catalog: kyc_global
+        actions: [VIEW_READ]

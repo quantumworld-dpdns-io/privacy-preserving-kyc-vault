@@ -1,0 +1,120 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-read-only-root-filesystem
+  annotations:
+    policies.kyverno.io/title: Require Read-Only Root Filesystem
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires all containers to run with readOnlyRootFilesystem: true.
+      A read-only root filesystem helps prevent tampering and limits
+      the impact of container compromise.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: read-only-root-fs
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Containers must set securityContext.readOnlyRootFilesystem to true.
+          Use emptyDir volumes for writable scratch space if needed.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+            initContainers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+            ephemeralContainers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+
+    - name: writable-paths-audit
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Pod has writable root filesystem. This is a security risk as it
+          allows container filesystem tampering. Set readOnlyRootFilesystem: true.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].securityContext.readOnlyRootFilesystem }}"
+                operator: AnyNotEquals
+                value: true
+
+    - name: kyc-vault-enforce-readonly
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: >-
+          KYC Vault pods require read-only root filesystem for credential data
+          protection. Use the 'temp' volume mount pattern for writable paths.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+            initContainers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+
+    - name: empty-dir-for-writable
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Writable directories must be mounted as emptyDir volumes when
+          readOnlyRootFilesystem is true. Common paths like /tmp, /var/run,
+          and /var/log should use emptyDir mounts.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.containers[].securityContext.readOnlyRootFilesystem }}"
+                operator: AnyEquals
+                value: true
+              - key: "{{ request.object.spec.volumes[].emptyDir }}"
+                operator: AllMissing
+                value:
+                  - medium: ""
+                    sizeLimit: ""
+
+    - name: validate-volume-mounts
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: >-
+          KYC Vault pods with read-only root must explicitly mount emptyDir
+          volumes for /tmp, /var/run, and /var/log. No hostPath volumes
+          are permitted for writable storage.
+        pattern:
+          spec:
+            volumes:
+              - emptyDir:
+                  medium: ""

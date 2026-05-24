@@ -1,0 +1,73 @@
+# Polaris Iceberg REST Catalog Configuration
+# Manages the KYC Lakehouse metadata layer
+
+server:
+  host: 0.0.0.0
+  port: 8181
+  enable_https: false
+  enable_auth: true
+
+authentication:
+  type: basic
+  token_type: Bearer
+  token_expiry_seconds: 3600
+  admin_credentials:
+    username: admin
+    password_hash: "${POLARIS_ADMIN_PASSWORD_HASH}"
+
+catalog:
+  type: iceberg
+  default_warehouse: kyc-lakehouse
+  allowed_warehouses:
+    - kyc-lakehouse
+    - kyc-staging
+    - kyc-sandbox
+
+  # Storage backend configuration
+  storage:
+    type: s3
+    s3:
+      endpoint: "${MINIO_ENDPOINT:-http://minio:9000}"
+      region: us-east-1
+      access_key: "${MINIO_ACCESS_KEY}"
+      secret_key: "${MINIO_SECRET_KEY}"
+      path_style_access: true
+      sts_endpoint: ""
+      max_retries: 3
+
+  # Table format defaults
+  table_defaults:
+    format_version: 2
+    file_format: PARQUET
+    compression_codec: ZSTD
+    target_file_size_bytes: 268435456
+    distribution_mode: hash
+    preserve_order_on_merge: true
+
+  # Snapshot retention
+  snapshot_retention:
+    max_snapshot_age_ms: 604800000     # 7 days
+    max_snapshot_count: 100
+    min_snapshots_to_keep: 5
+
+  # Manifest merge
+  manifest_merge:
+    enabled: true
+    min_manifest_count: 10
+    max_manifest_count: 50
+
+  # Commits
+  commits:
+    max_commit_retries: 4
+    commit_retry_delay_ms: 1000
+    concurrent_commit_handling: enabled
+
+logging:
+  level: INFO
+  format: json
+  output: stdout
+
+metrics:
+  enabled: true
+  prometheus_endpoint: /metrics
+  histogram_buckets: [0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60, 120]
