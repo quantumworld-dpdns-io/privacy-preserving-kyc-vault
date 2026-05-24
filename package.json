@@ -1,0 +1,37 @@
+{
+  "name": "privacy-preserving-kyc-vault",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Privacy-preserving KYC vault for adult platforms – reusable DID/KYC vault for cryptographic proof sharing",
+  "scripts": {
+    "build": "nx run-many --target=build --all",
+    "build:ts": "tsc -b",
+    "dev": "nx run-many --target=dev --all",
+    "lint": "nx run-many --target=lint --all",
+    "test": "nx run-many --target=test --all",
+    "test:e2e": "nx run-many --target=test:e2e --all",
+    "format": "prettier --write \"**/*.{ts,js,json,yaml,yml,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json,yaml,yml,md}\"",
+    "clean": "nx reset && git clean -fdX"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "prettier": "^3.4.0",
+    "nx": "^20.3.0",
+    "@nx/js": "^20.3.0",
+    "@nx/node": "^20.3.0",
+    "@nx/workspace": "^20.3.0",
+    "eslint": "^9.16.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "vitest": "^2.1.0",
+    "ts-node": "^10.9.0",
+    "tslib": "^2.8.0"
+  },
+  "license": "MIT"
+}
