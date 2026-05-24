@@ -1,0 +1,248 @@
+# Minimal Kubernetes manifest to deploy the KYC Vault
+#
+# Applies namespace, config, secrets, and core deployments.
+#
+# Usage:
+#   kubectl apply -f quickstart.yaml
+#   kubectl -n kyc-vault get pods -w
+#
+# For production, use the Helm chart at charts/kyc-vault/ instead.
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kyc-vault
+  labels:
+    name: kyc-vault
+    pod-security.kubernetes.io/enforce: restricted
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kyc-vault-config
+  namespace: kyc-vault
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  METRICS_ENABLED: "true"
+  METRICS_PORT: "9090"
+  TRACING_ENABLED: "true"
+  TRACING_ENDPOINT: "otel-collector.observability:4317"
+  DB_HOST: "kyc-vault-postgres"
+  DB_PORT: "5432"
+  DB_NAME: "kycvault"
+  DB_SSL_MODE: "require"
+  REDIS_HOST: "kyc-vault-redis"
+  REDIS_PORT: "6379"
+  API_RATE_LIMIT: "1000"
+  API_MAX_BODY_SIZE: "10485760"
+  CORS_ALLOWED_ORIGINS: "https://kyc-vault.com"
+  WASM_MAX_MEMORY: "10485760"
+  WASM_MAX_FUEL: "1000000"
+  WASM_MAX_INSTANCES: "100"
+  DID_CACHE_TTL: "300"
+  CREDENTIAL_DEFAULT_TTL: "7776000"
+  PQC_ENABLED: "true"
+  PQC_KEM: "ml-kem-768"
+  PQC_SIGNATURE: "ml-dsa-65"
+  OPA_ENABLED: "true"
+  OPA_ENDPOINT: "http://kyc-vault-opa:8181"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kyc-vault-secrets
+  namespace: kyc-vault
+type: Opaque
+stringData:
+  DB_PASSWORD: "change-me-in-production"
+  REDIS_PASSWORD: "change-me-in-production"
+  JWT_SECRET: "change-me-in-production"
+  API_KEY: "change-me-in-production"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kyc-vault-api
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: api
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-vault
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kyc-vault
+        app.kubernetes.io/component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: kyc-vault
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: api
+          image: ghcr.io/kyc-vault/api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+            - containerPort: 9090
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: kyc-vault-config
+            - secretRef:
+                name: kyc-vault-secrets
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kyc-vault-secrets
+                  key: DB_PASSWORD
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kyc-vault-secrets
+                  key: REDIS_PASSWORD
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kyc-vault-api
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 3000
+      name: http
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: api
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kyc-vault-ingress
+  namespace: kyc-vault
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+    - hosts:
+        - api.kyc-vault.com
+      secretName: kyc-vault-tls
+  rules:
+    - host: api.kyc-vault.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-vault-api
+                port:
+                  number: 80
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kyc-vault
+  namespace: kyc-vault
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/kyc-vault-service-role"
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-pdb
+  namespace: kyc-vault
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-vault
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kyc-vault-api
+  namespace: kyc-vault
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kyc-vault-api
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

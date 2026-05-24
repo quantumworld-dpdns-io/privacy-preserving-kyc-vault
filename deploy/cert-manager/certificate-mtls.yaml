@@ -1,0 +1,39 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kyc-vault-mtls
+  namespace: kyc-vault
+spec:
+  secretName: kyc-vault-mtls
+  duration: 8760h
+  renewBefore: 2160h
+  isCA: true
+  commonName: kyc-vault-ca
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Never
+  usages:
+  - digital signature
+  - key encipherment
+  - cert sign
+  - server auth
+  - client auth
+  dnsNames:
+  - kyc-vault-ca
+  - kyc-vault.internal
+  - "*.kyc-vault.internal"
+  - "*.kyc-vault.svc.cluster.local"
+  issuerRef:
+    name: kyc-vault-internal-ca
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: kyc-vault-internal-ca
+  namespace: kyc-vault
+spec:
+  ca:
+    secretName: kyc-vault-mtls

@@ -1,0 +1,122 @@
+# Polaris Realm Configuration for Multi-Tenant Catalog Access
+# Each realm maps to an isolation boundary with its own catalog namespace
+
+realms:
+  - name: production
+    display_name: "KYC Vault Production"
+    description: "Production credentials and verification data"
+    catalogs:
+      - name: kyc_lakehouse
+        type: iceberg
+        warehouse: kyc-lakehouse
+        storage:
+          s3:
+            bucket: kyc-vault-iceberg
+            path_prefix: production/
+        principals:
+          - trino_service
+          - duckdb_service
+          - airflow_service
+        privileges:
+          - CATALOG_MANAGE
+          - CATALOG_LIST_NAMESPACES
+          - TABLE_CREATE
+          - TABLE_READ
+          - TABLE_WRITE
+      - name: kyc_audit
+        type: iceberg
+        warehouse: kyc-lakehouse
+        storage:
+          s3:
+            bucket: kyc-vault-audit
+            path_prefix: production/
+        principals:
+          - trino_service
+          - airflow_service
+        privileges:
+          - CATALOG_MANAGE
+          - CATALOG_LIST_NAMESPACES
+          - TABLE_CREATE
+          - TABLE_READ
+          - TABLE_WRITE
+
+  - name: staging
+    display_name: "KYC Vault Staging"
+    description: "Staging environment for ETL testing and validation"
+    catalogs:
+      - name: kyc_lakehouse
+        type: iceberg
+        warehouse: kyc-staging
+        storage:
+          s3:
+            bucket: kyc-vault-iceberg
+            path_prefix: staging/
+        principals:
+          - ci_service
+          - dev_users
+        privileges:
+          - CATALOG_MANAGE
+          - CATALOG_LIST_NAMESPACES
+          - TABLE_CREATE
+          - TABLE_READ
+          - TABLE_WRITE
+
+  - name: sandbox
+    display_name: "KYC Vault Sandbox"
+    description: "Development sandbox for experimentation"
+    catalogs:
+      - name: kyc_lakehouse
+        type: iceberg
+        warehouse: kyc-sandbox
+        storage:
+          s3:
+            bucket: kyc-vault-iceberg
+            path_prefix: sandbox/
+        principals:
+          - dev_users
+        privileges:
+          - CATALOG_MANAGE
+          - CATALOG_LIST_NAMESPACES
+          - TABLE_CREATE
+          - TABLE_READ
+          - TABLE_WRITE
+
+# ── Principal Definitions ─────────────────────────────────────
+
+principals:
+  - name: trino_service
+    type: service
+    credentials:
+      type: client_credentials
+      client_id: trino-svc
+      client_secret_env: POLARIS_TRINO_SECRET
+
+  - name: duckdb_service
+    type: service
+    credentials:
+      type: client_credentials
+      client_id: duckdb-svc
+      client_secret_env: POLARIS_DUCKDB_SECRET
+
+  - name: airflow_service
+    type: service
+    credentials:
+      type: client_credentials
+      client_id: airflow-svc
+      client_secret_env: POLARIS_AIRFLOW_SECRET
+
+  - name: ci_service
+    type: service
+    credentials:
+      type: client_credentials
+      client_id: ci-svc
+      client_secret_env: POLARIS_CI_SECRET
+
+  - name: dev_users
+    type: group
+    members:
+      - user: alice
+      - user: bob
+      - user: charlie
+    credentials:
+      type: password

@@ -1,0 +1,166 @@
+# Tetragon TracingPolicy: Credential File Access Monitoring
+# Monitors eBPF-level access to credential files on disk
+
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "kyc-credential-file-access"
+  namespace: kyc-vault
+spec:
+  kprobes:
+    # ============================================================
+    # Openat syscall for credential files
+    # ============================================================
+    - call: "sys_openat"
+      syscall: true
+      args:
+        - index: 1
+          type: "string"
+          name: "pathname"
+        - index: 2
+          type: "int"
+          name: "flags"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "Prefix"
+              values:
+                - "/etc/kyc-vault/credentials"
+                - "/var/lib/kyc-vault/credential-store"
+                - "/mnt/credentials"
+                - "/secure/credentials"
+                - "/data/credentials"
+                - "/run/secrets/kyc"
+          matchArgs:
+            - index: 2
+              operator: "In"
+              values:
+                - "0"    # O_RDONLY
+                - "1"    # O_WRONLY
+                - "2"    # O_RDWR
+          matchActions:
+            - action: "SigKill"
+            - action: "Log"
+
+    # ============================================================
+    # Read syscall buffer inspection for credential content
+    # ============================================================
+    - call: "sys_read"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "fd"
+        - index: 1
+          type: "char[]"
+          name: "buf"
+          sizeArgIndex: 2
+        - index: 2
+          type: "size_t"
+          name: "count"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "GT"
+              values:
+                - 1024
+          matchActions:
+            - action: "Log"
+
+    # ============================================================
+    # Write syscall to credential files
+    # ============================================================
+    - call: "sys_write"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "fd"
+        - index: 1
+          type: "char[]"
+          name: "buf"
+          sizeArgIndex: 2
+        - index: 2
+          type: "size_t"
+          name: "count"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "GT"
+              values:
+                - 512
+          matchActions:
+            - action: "SigKill"
+
+    # ============================================================
+    # File credential export detection
+    # ============================================================
+    - call: "security_file_permission"
+      syscall: false
+      args:
+        - index: 0
+          type: "file"
+          name: "file"
+        - index: 1
+          type: "int"
+          name: "mask"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Postfix"
+              values:
+                - ".pem"
+                - ".key"
+                - ".crt"
+                - ".jks"
+                - ".p12"
+                - ".pfx"
+                - ".gpg"
+                - ".age"
+          matchArgs:
+            - index: 1
+              operator: "In"
+              values:
+                - "4"   # MAY_READ
+                - "2"   # MAY_WRITE
+          matchActions:
+            - action: "Log"
+
+  # ============================================================
+  # Tracepoints
+  # ============================================================
+  tracepoints:
+    - subsystem: "syscalls"
+      event: "sys_enter_openat"
+      args:
+        - index: 0
+          type: "string"
+          name: "filename"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Prefix"
+              values:
+                - "/etc/kyc-vault/credentials"
+          matchActions:
+            - action: "Log"
+
+    - subsystem: "syscalls"
+      event: "sys_exit_close"
+      selectors:
+        - matchPIDs:
+            - operator: "InMap"
+              values:
+                - "CredentialProcessMap"
+
+  # ============================================================
+  # Selector for which pods to monitor
+  # ============================================================
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-credential-service"
+
+  spec:
+    rateLimit:
+      eventsPerSecond: 500
+      burstSize: 50

@@ -1,0 +1,111 @@
+services:
+  teaclave-worker:
+    image: ghcr.io/apache/teaclave-worker:0.7.0
+    platform: linux/amd64
+    privileged: true
+    devices:
+      - /dev/sgx_enclave:/dev/sgx_enclave
+      - /dev/sgx_provision:/dev/sgx_provision
+    volumes:
+      - ./config.toml:/etc/teaclave/config.toml:ro
+      - ./functions:/opt/teaclave/functions:ro
+      - teaclave-data:/var/lib/teaclave
+      - /var/run/aesmd:/var/run/aesmd
+    environment:
+      RUST_LOG: info
+      SGX_AESM_ADDR: 1
+      TEACLAVE_CONFIG: /etc/teaclave/config.toml
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN_PATH: /etc/teaclave/secrets/vault-token
+    ports:
+      - "7779:7779"
+      - "9090:9090"
+    networks:
+      - teaclave-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:7779"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [sgx]
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+
+  aas:
+    image: ghcr.io/apache/teaclave-aas:0.7.0
+    platform: linux/amd64
+    volumes:
+      - ./config.toml:/etc/teaclave/config.toml:ro
+      - teaclave-data:/var/lib/teaclave
+    environment:
+      RUST_LOG: info
+      TEACLAVE_CONFIG: /etc/teaclave/config.toml
+      AAS_DB_URL: postgres://aas:aas@postgres:5432/aas
+    ports:
+      - "7777:7777"
+    networks:
+      - teaclave-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:7777"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  apiservice:
+    image: ghcr.io/apache/teaclave-apiservice:0.7.0
+    platform: linux/amd64
+    volumes:
+      - ./config.toml:/etc/teaclave/config.toml:ro
+    environment:
+      RUST_LOG: info
+      TEACLAVE_CONFIG: /etc/teaclave/config.toml
+      API_SERVICE_LISTEN: 0.0.0.0:7778
+    ports:
+      - "7778:7778"
+    networks:
+      - teaclave-net
+    depends_on:
+      aas:
+        condition: service_healthy
+      teaclave-worker:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:7778"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: aas
+      POSTGRES_USER: aas
+      POSTGRES_PASSWORD: ${AAS_DB_PASSWORD:-changeme}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - teaclave-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aas"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  teaclave-net:
+    driver: bridge
+
+volumes:
+  teaclave-data:
+  postgres-data:

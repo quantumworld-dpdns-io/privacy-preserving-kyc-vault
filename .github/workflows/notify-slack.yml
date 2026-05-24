@@ -1,0 +1,100 @@
+name: Notify Slack
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy to Production"
+      - "Deploy to Staging"
+      - "Daily Full Security Scan"
+      - "Benchmarks"
+      - "Terraform Apply"
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "Custom Slack message"
+        required: true
+        type: string
+      channel:
+        description: "Slack channel"
+        required: false
+        default: general
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  notify:
+    name: Send Slack Notification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine notification payload
+        id: payload
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const event = '${{ github.event_name }}';
+
+            if (event === 'workflow_dispatch') {
+              core.setOutput('text', '${{ github.event.inputs.message }}');
+              core.setOutput('channel', '#${{ github.event.inputs.channel }}');
+              return;
+            }
+
+            const workflow = '${{ github.event.workflow }}';
+            const conclusion = '${{ github.event.workflow_run.conclusion }}';
+            const runId = '${{ github.event.workflow_run.id }}';
+            const repo = '${{ github.repository }}';
+            const serverUrl = '${{ github.server_url }}';
+            const actor = '${{ github.event.workflow_run.actor.login }}';
+            const branch = '${{ github.event.workflow_run.head_branch }}';
+            const sha = '${{ github.event.workflow_run.head_sha.slice(0, 7) }}';
+
+            const emoji = conclusion === 'success' ? ':white_check_mark:' :
+                          conclusion === 'failure' ? ':x:' :
+                          conclusion === 'cancelled' ? ':no_entry:' : ':warning:';
+
+            const text = `${emoji} *${workflow}* ${conclusion === 'success' ? 'succeeded' : conclusion === 'failure' ? 'failed' : conclusion}
+            Repo: ${repo}
+            Branch: \`${branch}\` (${sha})
+            Actor: ${actor}
+            Run: <${serverUrl}/${repo}/actions/runs/${runId}|View Run>`;
+
+            core.setOutput('text', text);
+            core.setOutput('channel', '#deployments');
+
+      - name: Send Slack notification
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ steps.payload.outputs.channel }}",
+              "username": "GitHub Actions",
+              "icon_emoji": ":github:",
+              "text": "${{ steps.payload.outputs.text }}",
+              "mrkdwn": true
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  notify-on-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Send failure alert to on-call
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "#on-call",
+              "username": "GitHub Actions (Failure)",
+              "icon_emoji": ":sos:",
+              "text": ":rotating_light: Workflow *${{ github.event.workflow }}* FAILED\nRepo: ${{ github.repository }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

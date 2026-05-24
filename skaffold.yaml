@@ -1,0 +1,25 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: kyc-vault
+build:
+  artifacts:
+    - image: ghcr.io/quantumworld-dpdns-io/kyc-vault
+      docker:
+        dockerfile: Dockerfile
+  tagPolicy:
+    gitCommit: {}
+deploy:
+  helm:
+    releases:
+      - name: kyc-vault
+        chartPath: charts/kyc-vault
+        valuesFiles:
+          - charts/kyc-vault/values.yaml
+        namespace: kyc-vault
+        createNamespace: true
+portForward:
+  - resourceType: service
+    resourceName: kyc-vault
+    port: 3000
+    localPort: 3000

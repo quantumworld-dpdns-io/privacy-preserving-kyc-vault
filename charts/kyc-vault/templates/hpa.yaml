@@ -1,0 +1,135 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "kyc-vault.fullname" . }}-{{ .Values.component }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "kyc-vault.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ .Values.component }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "kyc-vault.fullname" . }}-{{ .Values.component }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleDownStabilization | default 300 }}
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleUpStabilization | default 60 }}
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage | default 70 }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage | default 80 }}
+    {{- if .Values.autoscaling.customMetrics }}
+    {{- toYaml .Values.autoscaling.customMetrics | nindent 4 }}
+    {{- end }}
+---
+{{- if .Values.autoscaling.podMetrics }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "kyc-vault.fullname" . }}-{{ .Values.component }}-pod-metrics
+  namespace: {{ .Values.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "kyc-vault.fullname" . }}-{{ .Values.component }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: kyc_verifications_per_second
+        target:
+          type: AverageValue
+          averageValue: {{ .Values.autoscaling.podMetrics.verificationsPerPod | default "10" }}
+    - type: Pods
+      pods:
+        metric:
+          name: kyc_queue_depth
+        target:
+          type: AverageValue
+          averageValue: {{ .Values.autoscaling.podMetrics.queueDepth | default "50" }}
+---
+{{- end }}
+{{- if .Values.autoscaling.enableVPAClusterRole }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "kyc-vault.fullname" . }}-vpa
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kyc-vault.fullname" . }}-vpa
+rules:
+  - apiGroups: ["autoscaling.k8s.io"]
+    resources: ["verticalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kyc-vault.fullname" . }}-vpa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kyc-vault.fullname" . }}-vpa
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kyc-vault.fullname" . }}-vpa
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: {{ include "kyc-vault.fullname" . }}-{{ .Values.component }}
+  namespace: {{ .Values.namespace }}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "kyc-vault.fullname" . }}-{{ .Values.component }}
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        minAllowed:
+          cpu: {{ .Values.autoscaling.vpaMinCPU | default "100m" }}
+          memory: {{ .Values.autoscaling.vpaMinMemory | default "128Mi" }}
+        maxAllowed:
+          cpu: {{ .Values.autoscaling.vpaMaxCPU | default "4" }}
+          memory: {{ .Values.autoscaling.vpaMaxMemory | default "4Gi" }}
+        controlledResources: ["cpu", "memory"]
+{{- end }}

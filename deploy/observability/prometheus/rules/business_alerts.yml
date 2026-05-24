@@ -1,0 +1,94 @@
+groups:
+  - name: business_metrics
+    interval: 60s
+    rules:
+      - alert: KYCCompletionRateDrop
+        expr: rate(kyc_completed_total[1h]) / rate(kyc_started_total[1h]) < 0.7
+        for: 30m
+        labels:
+          severity: critical
+          team: product
+        annotations:
+          summary: "KYC completion rate dropped below 70%"
+          description: "KYC completion rate is {{ $value | humanizePercentage }} over the last hour."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/kyc-completion-drop"
+
+      - alert: CredentialIssuanceVolumeDrop
+        expr: rate(credential_issuance_requests_total[1h]) < avg(rate(credential_issuance_requests_total[1h] offset 1w)) * 0.5
+        for: 1h
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "Credential issuance volume dropped 50% from weekly baseline"
+          description: "Issuance rate is {{ $value }} ops/s, down from weekly average."
+
+      - alert: DIDRegistrationRateDecline
+        expr: rate(did_create_requests_total[1h]) < avg(rate(did_create_requests_total[1h] offset 1w)) * 0.6
+        for: 2h
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "DID registration rate declined 40% from baseline"
+          description: "DID creation rate is {{ $value }} ops/s."
+
+      - alert: HighVerificationFailureBusinessImpact
+        expr: rate(credential_verification_errors_total[30m]) > 100
+        for: 10m
+        labels:
+          severity: critical
+          team: product
+        annotations:
+          summary: "High volume of verification failures affecting users"
+          description: "Verification failures at rate {{ $value }}/s, likely impacting user experience."
+
+      - alert: KYCAbandonmentRateHigh
+        expr: rate(kyc_abandoned_total[30m]) / rate(kyc_started_total[30m]) > 0.4
+        for: 15m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "KYC abandonment rate above 40%"
+          description: "{{ $value | humanizePercentage }} of users are abandoning the KYC flow."
+
+      - alert: SLABreachRisk
+        expr: (time() - kyc_last_sla_met_timestamp) > 300
+        for: 5m
+        labels:
+          severity: critical
+          team: product
+        annotations:
+          summary: "KYC SLA breach risk detected"
+          description: "KYC processing has exceeded SLA threshold of 5 minutes."
+
+      - alert: DailyActiveUsersDrop
+        expr: dau_count < avg(dau_count offset 1w) * 0.7
+        for: 30m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "Daily active users dropped 30% from weekly average"
+          description: "DAU is {{ $value }}, down from {{ $labels }}}."
+
+      - alert: RevenueMetricAnomaly
+        expr: abs(revenue_per_hour - avg(revenue_per_hour offset 1w)) > 2 * stddev(revenue_per_hour offset 1w)
+        for: 30m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "Revenue metric anomaly detected"
+          description: "Hourly revenue {{ $value }} deviates significantly from weekly pattern."
+
+      - alert: OnboardingCompletionRateLow
+        expr: rate(user_onboarding_completed_total[1h]) / rate(user_onboarding_started_total[1h]) < 0.5
+        for: 1h
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "User onboarding completion rate below 50%"
+          description: "Onboarding completion rate is {{ $value | humanizePercentage }}."

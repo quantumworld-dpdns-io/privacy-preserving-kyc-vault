@@ -1,0 +1,69 @@
+server.name: kibana
+server.host: 0.0.0.0
+server.port: 5601
+server.basePath: /kibana
+server.rewriteBasePath: true
+server.publicBaseUrl: https://logs.kyc-vault.internal/kibana
+
+elasticsearch.hosts: ["https://elasticsearch:9200"]
+elasticsearch.username: ${ELASTICSEARCH_USERNAME:kibana}
+elasticsearch.password: ${ELASTICSEARCH_PASSWORD:changeme}
+elasticsearch.ssl.verificationMode: certificate
+elasticsearch.ssl.certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
+elasticsearch.ssl.certificate: "/usr/share/kibana/config/certs/kibana.crt"
+elasticsearch.ssl.key: "/usr/share/kibana/config/certs/kibana.key"
+elasticsearch.requestTimeout: 60000
+elasticsearch.pingTimeout: 5000
+
+server.ssl.enabled: true
+server.ssl.certificate: /usr/share/kibana/config/certs/kibana.crt
+server.ssl.key: /usr/share/kibana/config/certs/kibana.key
+server.ssl.certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
+
+logging.root.level: info
+logging.verbose: false
+
+xpack.security.enabled: true
+xpack.security.encryptionKey: ${KIBANA_ENCRYPTION_KEY}
+xpack.security.session.idleTimeout: 8h
+xpack.security.session.lifespan: 30d
+
+xpack.encryptedSavedObjects.encryptionKey: ${KIBANA_ENCRYPTION_KEY}
+
+xpack.reporting.enabled: true
+xpack.reporting.capture.browser.chromium.disableSandbox: true
+
+xpack.ingestManager.enabled: true
+xpack.fleet.enabled: false
+xpack.fleet.agents.enabled: false
+
+xpack.monitoring.enabled: true
+xpack.monitoring.ui.container.elasticsearch.enabled: true
+
+xpack.discover.maxSamplesPerSearch: 1000
+xpack.discover.searchTimeout: 30000
+xpack.discover.showFieldStatistics: true
+
+xpack.visualization.enableSparkline: true
+
+newsfeed.enabled: false
+
+telemetry.enabled: false
+telemetry.optIn: false
+
+map.includeElasticMapsService: false
+map.regionmap:
+  includeElasticMapsService: false
+
+savedObjects.maxImportPayloadBytes: 26214400
+savedObjects.maxImportExportSize: 10000
+
+uiSettings:
+  overrides:
+    "dateFormat:tz": "UTC"
+    "dateFormat": "YYYY-MM-DD HH:mm:ss.SSS"
+    "defaultIndex": "filebeat-*"
+    "discover:sampleSize": 500
+    "timepicker:timeDefaults":
+      from: now-24h
+      to: now

@@ -1,0 +1,117 @@
+name: License Check
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  license-check-npm:
+    name: Check npm Licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run license-checker
+        run: |
+          npx license-checker --json --production > license-report.json 2>&1 || true
+
+      - name: Check for disallowed licenses
+        id: check-licenses
+        run: |
+          DISALLOWED=("GPL" "AGPL" "SSPL" "BUSL" "Custom")
+          VIOLATIONS=()
+          for pkg in $(jq -r 'keys[]' license-report.json); do
+            LICENSE=$(jq -r ".[\"$pkg\"].licenses" license-report.json)
+            for BAD in "${DISALLOWED[@]}"; do
+              if [[ "$LICENSE" == *"$BAD"* ]]; then
+                VIOLATIONS+=("$pkg ($LICENSE)")
+              fi
+            done
+          done
+          if [ ${#VIOLATIONS[@]} -gt 0 ]; then
+            echo "License violations found:"
+            printf '%s\n' "${VIOLATIONS[@]}"
+            echo "violations=$(printf '%s\n' "${VIOLATIONS[@]}")" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "All licenses are compliant."
+          echo "violations=" >> "$GITHUB_OUTPUT"
+
+      - name: Generate license report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-license-report
+          path: license-report.json
+          retention-days: 60
+
+      - name: Comment license summary on PR
+        if: github.event_name == 'pull_request' && success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('license-report.json', 'utf8'));
+            const licenses = {};
+            Object.values(report).forEach(pkg => {
+              const l = pkg.licenses || 'Unknown';
+              licenses[l] = (licenses[l] || 0) + 1;
+            });
+            const summary = Object.entries(licenses)
+              .map(([k, v]) => `- ${k}: ${v}`)
+              .join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### License Check Summary\n\n${summary}\n\n_All dependencies cleared._`
+            });
+
+  license-check-pip:
+    name: Check pip Licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-licenses
+        run: pip install pip-licenses
+
+      - name: Run pip-licenses
+        run: |
+          pip-licenses --format=json --output-file=python-licenses.json
+
+      - name: Check for disallowed licenses
+        run: |
+          python -c "
+import json
+with open('python-licenses.json') as f:
+    pkgs = json.load(f)
+disallowed = ['GPL', 'AGPL', 'SSPL', 'BUSL', 'Proprietary']
+violations = [(p['Name'], p['License']) for p in pkgs if any(d in (p.get('License') or '') for d in disallowed)]
+if violations:
+    print('License violations:')
+    for n, l in violations:
+        print(f'  {n} ({l})')
+    exit(1)
+print('All pip licenses are compliant.')
+"

@@ -1,0 +1,68 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Candidate version (e.g. 2.1.0-rc.1)"
+        required: true
+        type: string
+      from_ref:
+        description: "Git ref to release from"
+        required: false
+        default: develop
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-candidate:
+    name: Create Release Candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.from_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate version format
+        run: |
+          if [[ ! "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "Invalid version format. Expected: semver (e.g. 2.1.0-rc.1)"
+            exit 1
+          fi
+
+      - name: Update version
+        run: |
+          npm version ${{ github.event.inputs.version }} --no-git-tag-version
+          echo "${{ github.event.inputs.version }}" > VERSION
+
+      - name: Create release branch
+        run: |
+          BRANCH="release/v${{ github.event.inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add package.json VERSION
+          git commit -m "chore(release): candidate v${{ github.event.inputs.version }}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Release candidate v${{ github.event.inputs.version }}" \
+            --body "## Release Candidate v${{ github.event.inputs.version }}\n\nThis PR proposes a release candidate for version **v${{ github.event.inputs.version }}**.\n\n### Changes\n- $(git log --oneline origin/main..HEAD | head -50 | sed 's/^/- /')\n\n### Checklist\n- [ ] Smoke tests passed\n- [ ] Integration tests passed\n- [ ] CHANGELOG updated\n- [ ] Version bumped to ${{ github.event.inputs.version }}" \
+            --label release,candidate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag candidate
+        run: |
+          git tag "v${{ github.event.inputs.version }}"
+          git push origin "v${{ github.event.inputs.version }}"

@@ -1,0 +1,147 @@
+# Teaclave Worker Configuration
+# ============================================================
+# Supports multiple TEE backends: Intel SGX, AMD SEV-SNP
+
+[worker]
+id = 0
+name = "kyc-vault-teaclave-worker"
+description = "KYC Vault trusted execution worker for credential processing"
+role = "compute"
+listen_address = "0.0.0.0"
+listen_port = 7779
+max_concurrent_tasks = 16
+task_timeout_seconds = 300
+keep_alive_seconds = 60
+worker_threads = 8
+
+[worker.tls]
+enabled = true
+cert_file = "/etc/teaclave/certs/worker.crt"
+key_file = "/etc/teaclave/certs/worker.key"
+ca_file = "/etc/teaclave/certs/ca.crt"
+
+[worker.ratelimit]
+requests_per_second = 100
+burst_size = 200
+
+# ============================================================
+# TEE Configuration
+# ============================================================
+[tee]
+backend = "sgx"  # Options: sgx, sev, none
+
+[tee.sgx]
+enabled = true
+library_path = "/opt/intel/sgxpsw/aesm"
+epid_group_id = 0
+quote_type = "linkable"  # For production: unlinkable
+spid = "${SGX_SPID}"
+subscription_key = "${SGX_SUBSCRIPTION_KEY}"
+ias_url = "https://api.trustedservices.intel.com/sgx/attestation/v4"
+allow_debug_enclave = false
+enclave_size_mb = 512
+max_enclave_memory_mb = 2048
+num_enclaves = 4
+enable_remote_attestation = true
+
+[tee.sgx.ra]
+tls_enabled = true
+ra_type = "epid"
+ra_timeout_seconds = 30
+ias_poll_interval_ms = 1000
+
+[tee.sev]
+enabled = false
+platform_url = "https://kdsintf.amd.com/sev/v1"
+cert_chain_file = "/etc/teaclave/certs/sev-chain.pem"
+api_key = "${SEV_API_KEY}"
+require_snp = true
+policy = 0x30000  # Minimum SEV-SNP policy
+
+[tee.none]
+enabled = false
+
+# ============================================================
+# Function Configuration
+# ============================================================
+[functions]
+directory = "/opt/teaclave/functions"
+default_function = "credential_process"
+
+[functions.credential_process]
+file = "/opt/teaclave/functions/credential_process.py"
+entry_point = "entry_point"
+bulk_entry = "bulk_entry"
+timeout_seconds = 60
+max_input_size_mb = 10
+max_output_size_mb = 1
+allowed_aad_sources = ["credential-issuer", "kyc-orchestrator"]
+
+# ============================================================
+# Data Protection
+# ============================================================
+[data_protection]
+encryption_algorithm = "AES-256-GCM"
+key_derivation = "HKDF-SHA256"
+enable_plaintext_io = false
+input_encryption = true
+output_encryption = true
+in_memory_processing = true
+zero_on_free = true
+
+[data_protection.key_management]
+provider = "vault"
+vault_address = "https://vault.kyc-vault.internal:8200"
+vault_token_path = "/etc/teaclave/secrets/vault-token"
+key_path = "teaclave/data-keys"
+key_ttl_seconds = 3600
+auto_rotate = true
+
+# ============================================================
+# Attestation
+# ============================================================
+[attestation]
+enabled = true
+verify_workers = true
+verify_clients = true
+cache_ttl_seconds = 3600
+
+[attestation.verify]
+allow_debug_mode = false
+minimum_isv_svn = 6
+allowed_mrsigners = [
+    "3c4b5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c",
+]
+allowed_mrenclaves = []
+
+# ============================================================
+# Logging & Monitoring
+# ============================================================
+[logging]
+level = "info"
+format = "json"
+output = "file"
+file_path = "/var/log/teaclave/worker.log"
+max_size_mb = 100
+max_backups = 10
+max_age_days = 30
+
+[monitoring]
+metrics_port = 9090
+metrics_path = "/metrics"
+enable_tracing = true
+tracing_endpoint = "http://otel-collector:4317"
+
+# ============================================================
+# Networking
+# ============================================================
+[network]
+allowed_egress = [
+    "vault.kyc-vault.internal:8200",
+    "otel-collector:4317",
+]
+allowed_ingress = [
+    "0.0.0.0/0:7779",
+]
+dns_servers = ["8.8.8.8", "1.1.1.1"]
+proxy = ""

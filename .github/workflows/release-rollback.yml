@@ -1,0 +1,97 @@
+name: Release Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_to:
+        description: "Version to rollback to (e.g. v2.0.0)"
+        required: true
+        type: string
+      environment:
+        description: "Environment to rollback"
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  KUBE_NAMESPACE: ${{ github.event.inputs.environment }}
+
+jobs:
+  rollback:
+    name: Rollback ${{ github.event.inputs.environment }} to ${{ github.event.inputs.rollback_to }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag exists
+        run: |
+          git fetch --tags
+          if ! git rev-parse "${{ github.event.inputs.rollback_to }}" >/dev/null 2>&1; then
+            echo "Tag ${{ github.event.inputs.rollback_to }} does not exist"
+            exit 1
+          fi
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          KUBE_SECRET="KUBE_CONFIG_${{ github.event.inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}"
+          echo "${!KUBE_SECRET}" > $HOME/.kube/config
+
+      - name: Rollback Kubernetes deployment
+        run: |
+          kubectl rollout undo deployment \
+            -n ${{ env.KUBE_NAMESPACE }} \
+            --to-revision=${{ github.event.inputs.rollback_to }}
+          kubectl rollout status deployment \
+            -n ${{ env.KUBE_NAMESPACE }} \
+            --timeout=300s
+
+      - name: Verify rollback
+        run: |
+          kubectl get pods -n ${{ env.KUBE_NAMESPACE }} -o wide
+          kubectl describe deployment -n ${{ env.KUBE_NAMESPACE }} | grep "Image"
+
+  health-check:
+    name: Post-Rollback Health Check
+    runs-on: ubuntu-latest
+    needs: rollback
+    steps:
+      - name: Wait for pods to stabilize
+        run: sleep 30
+
+      - name: Run health check
+        run: |
+          URL="${{ github.event.inputs.environment == 'production' && vars.PRODUCTION_URL || vars.STAGING_URL }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${URL}/health")
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed after rollback. Status: $STATUS"
+            exit 1
+          fi
+          echo "Health check passed. Status: $STATUS"
+
+  notify:
+    name: Notify Rollback
+    runs-on: ubuntu-latest
+    needs: [rollback, health-check]
+    if: always()
+    steps:
+      - uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_DEPLOY_CHANNEL }}",
+              "text": "${{ needs.health-check.result == 'success' && ':warning:' || ':rotating_light:' }} Rollback to \`${{ github.event.inputs.rollback_to }}\` on \`${{ github.event.inputs.environment }}\` ${{ needs.health-check.result == 'success' && 'completed' || 'FAILED' }}\nTriggered by: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,177 @@
+# Kyverno ClusterPolicy: Enforce Pod Security Standards (Baseline)
+# Applies Pod Security Standards to all namespaces
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: apply-psp-baseline
+  annotations:
+    policies.kyverno.io/title: Enforce Pod Security Standards (Baseline)
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: Enforces baseline Pod Security Standards across all namespaces.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: host-namespaces
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Sharing host namespaces is forbidden.
+        pattern:
+          spec:
+            hostPID: false
+            hostIPC: false
+
+    - name: privileged-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Privileged containers are forbidden.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  privileged: false
+
+    - name: host-network-ports
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Host network and ports are restricted.
+        pattern:
+          spec:
+            hostNetwork: false
+            hostPort: 0
+            containers:
+              - ports:
+                  - x: "null"
+
+    - name: allowed-capabilities
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Only NET_BIND_SERVICE capability is allowed.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  capabilities:
+                    allowed:
+                      - NET_BIND_SERVICE
+                    denied:
+                      - "*"
+
+    - name: host-filesystem
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Host path volumes are forbidden.
+        pattern:
+          spec:
+            volumes:
+              - hostPath: "null"
+
+    - name: seccomp-profiles
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Seccomp profile must be RuntimeDefault or Localhost.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault | Localhost
+
+    - name: apparmor-profiles
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: AppArmor annotation must be runtime/default or localhost.
+        podSecurity:
+          level: baseline
+          version: latest
+
+    - name: read-only-root-filesystem
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: Production pods must have read-only root filesystem.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+
+    - name: run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Containers must not run as root.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  runAsNonRoot: true
+
+    - name: proc-mount-type
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: Proc mount type must be Default.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  procMount: Default
+
+    - name: se-linux-options
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: SELinux type must be container_t or spc_t.
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  seLinuxOptions:
+                    type: container_t | spc_t

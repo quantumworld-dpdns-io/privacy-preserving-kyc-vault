@@ -1,0 +1,113 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-host-namespaces
+  annotations:
+    policies.kyverno.io/title: Disallow Host Namespaces
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Disallows pods from using hostPID, hostIPC, or hostNetwork namespaces.
+      Host namespace access can bypass container isolation boundaries.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: host-pid
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Sharing the host PID namespace (hostPID: true) is not allowed.
+          Containers must run in isolated PID namespaces.
+        pattern:
+          spec:
+            hostPID: false
+
+    - name: host-ipc
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Sharing the host IPC namespace (hostIPC: true) is not allowed.
+          Containers must run in isolated IPC namespaces.
+        pattern:
+          spec:
+            hostIPC: false
+
+    - name: host-network
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Sharing the host network namespace (hostNetwork: true) is not allowed.
+          Containers must run in isolated network namespaces.
+        pattern:
+          spec:
+            hostNetwork: false
+
+    - name: host-ports-restricted
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Using hostPort is not allowed. Use standard Service/Ingress
+          resources for external traffic routing.
+        pattern:
+          spec:
+            hostPort: 0
+
+    - name: host-namespace-audit
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Pod is using host namespaces which violates security policies.
+          Remove hostPID, hostIPC, and hostNetwork settings.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.hostPID }}"
+                operator: Equals
+                value: true
+              - key: "{{ request.object.spec.hostIPC }}"
+                operator: Equals
+                value: true
+              - key: "{{ request.object.spec.hostNetwork }}"
+                operator: Equals
+                value: true
+
+    - name: kyc-vault-no-host-access
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: kyc-vault
+      validate:
+        message: >-
+          KYC Vault pods must not use host namespaces under any circumstances.
+          This is a critical security requirement for credential data isolation.
+        pattern:
+          spec:
+            hostPID: false
+            hostIPC: false
+            hostNetwork: false

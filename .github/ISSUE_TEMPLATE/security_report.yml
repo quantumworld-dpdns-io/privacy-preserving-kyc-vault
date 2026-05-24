@@ -1,0 +1,84 @@
+name: Security Report
+description: Report a security vulnerability
+title: "[Security] "
+labels: [security, triage]
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        :warning: **IMPORTANT**: If this is a critical security vulnerability, please **DO NOT** file a public issue.
+        Instead, send an email to **security@example.com** with full details.
+
+        For non-critical findings, please fill out the form below.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Estimated severity of the issue
+      options:
+        - critical (remote code execution, auth bypass)
+        - high (sensitive data exposure, privilege escalation)
+        - medium (XSS, CSRF, information disclosure)
+        - low (minor information leak, best practice)
+    validations:
+      required: true
+
+  - type: input
+    id: cve
+    attributes:
+      label: CVE (if known)
+      description: CVE identifier if applicable
+      placeholder: CVE-2024-XXXXX
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Vulnerability Description
+      description: Describe the security issue in detail
+      placeholder: What is the vulnerability and where does it occur?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: Provide step-by-step instructions
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What is the potential impact of this vulnerability?
+    validations:
+      required: true
+
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Suggested Remediation
+      description: Do you have a suggestion for fixing this?
+      placeholder: Suggested fix or mitigation
+
+  - type: input
+    id: disclosure
+    attributes:
+      label: Disclosure Timeline
+      description: When was this vulnerability discovered?
+      placeholder: 2024-01-01
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      options:
+        - label: I have verified this is a legitimate security issue
+          required: true
+        - label: I have checked for existing security reports
+          required: true
+        - label: I understand that a CVE may be requested for this issue

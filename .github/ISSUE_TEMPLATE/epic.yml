@@ -1,0 +1,117 @@
+name: Epic
+description: Define a large body of work spanning multiple issues
+title: "[Epic] "
+labels: [epic, triage]
+type: Task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for epics — large features or initiatives that span multiple sprints and issues.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - feature development
+        - infrastructure
+        - security initiative
+        - compliance initiative
+        - performance initiative
+        - migration
+        - deprecation
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Business Priority
+      options:
+        - critical (strategic imperative)
+        - high (important initiative)
+        - medium (valuable improvement)
+        - low (backlog)
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Executive Summary
+      description: High-level overview of this epic
+    validations:
+      required: true
+
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals / Success Criteria
+      description: What does success look like?
+      placeholder: |
+        - Goal 1
+        - Goal 2
+        - Metric: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in scope and out of scope?
+      placeholder: |
+        In scope:
+        - ...
+        Out of scope:
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks / Sub-issues
+      description: List of work items
+      placeholder: |
+        - [ ] #123 Task 1
+        - [ ] #124 Task 2
+        - [ ] #125 Task 3
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: What must be completed first?
+      placeholder: |
+        - Blocked by: #...
+        - Depends on: feature X
+
+  - type: input
+    id: timeline
+    attributes:
+      label: Target Timeline
+      description: Expected completion timeframe
+      placeholder: "Q2 2025"
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / Mitigations
+      description: What could go wrong?
+      placeholder: |
+        - Risk 1 → Mitigation 1
+        - Risk 2 → Mitigation 2
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      options:
+        - label: I have checked for existing epics covering this topic
+          required: true
+        - label: This epic has clear and measurable success criteria
+          required: true
+        - label: Stakeholders have been consulted

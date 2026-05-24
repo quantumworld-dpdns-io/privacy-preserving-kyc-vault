@@ -1,0 +1,75 @@
+name: Documentation
+description: Report missing, incorrect, or unclear documentation
+title: "[Docs] "
+labels: [documentation, triage]
+type: Task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve our documentation!
+
+  - type: dropdown
+    id: doc_type
+    attributes:
+      label: Documentation Type
+      description: What type of documentation does this relate to?
+      options:
+        - README
+        - API reference
+        - developer guide
+        - deployment guide
+        - user guide
+        - architectural decision record (ADR)
+        - code comments
+        - changelog
+        - contributing guide
+        - security policy
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue Type
+      options:
+        - missing documentation
+        - incorrect documentation
+        - unclear documentation
+        - outdated documentation
+        - typo / formatting
+        - improvement suggestion
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Document Location
+      description: Link or path to the relevant document
+      placeholder: "docs/api-reference.md or https://docs.example.com/api"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be changed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Text
+      description: Do you have suggested wording?
+      placeholder: Proposed changes...
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      options:
+        - label: I have searched for existing documentation issues
+          required: true
+        - label: I am willing to help write this documentation

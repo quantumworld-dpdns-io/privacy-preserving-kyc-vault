@@ -1,0 +1,143 @@
+{
+  "templates": [
+    {
+      "id": "welcome-10-off",
+      "name": "Welcome 10% Off",
+      "description": "First purchase discount for new customers",
+      "type": "percentage",
+      "value": 10.0,
+      "maxDiscount": "50.00",
+      "currency": "USD",
+      "minPurchase": "10.00",
+      "usageLimit": 1,
+      "customerScope": "new_only",
+      "validDays": 30,
+      "applicableProducts": ["*"],
+      "stackable": false,
+      "metadata": {
+        "campaign": "onboarding",
+        "priority": 1
+      }
+    },
+    {
+      "id": "volume-500-off",
+      "name": "Volume Purchase $500 Off",
+      "description": "Discount for high-volume verification purchases",
+      "type": "fixed",
+      "value": "500.00",
+      "currency": "USD",
+      "minPurchase": "5000.00",
+      "usageLimit": 1,
+      "customerScope": "any",
+      "validDays": 60,
+      "applicableProducts": ["kyc-verification-credit", "kyc-enterprise-seat"],
+      "stackable": false,
+      "metadata": {
+        "campaign": "volume_discount",
+        "priority": 2
+      }
+    },
+    {
+      "id": "annual-billing-20",
+      "name": "Annual Billing 20% Off",
+      "description": "Save 20% by switching to annual billing",
+      "type": "percentage",
+      "value": 20.0,
+      "maxDiscount": "2000.00",
+      "currency": "USD",
+      "minPurchase": "500.00",
+      "usageLimit": 1,
+      "customerScope": "existing",
+      "validDays": 90,
+      "applicableProducts": ["kyc-api-access"],
+      "stackable": false,
+      "metadata": {
+        "campaign": "annual_billing",
+        "priority": 1
+      }
+    },
+    {
+      "id": "startup-credits-250",
+      "name": "Startup Credits $250",
+      "description": "Free verification credits for Y Combinator and other accelerator startups",
+      "type": "fixed",
+      "value": "250.00",
+      "currency": "USD",
+      "minPurchase": "0.00",
+      "usageLimit": 1,
+      "customerScope": "whitelist",
+      "validDays": 365,
+      "applicableProducts": ["kyc-verification-credit"],
+      "stackable": false,
+      "requireApproval": true,
+      "metadata": {
+        "campaign": "startup_program",
+        "priority": 3
+      }
+    },
+    {
+      "id": "referral-50-credit",
+      "name": "Referral $50 Credit",
+      "description": "Credit for referring a new customer who completes a purchase",
+      "type": "fixed",
+      "value": "50.00",
+      "currency": "USD",
+      "minPurchase": "100.00",
+      "usageLimit": 10,
+      "customerScope": "existing",
+      "validDays": 180,
+      "applicableProducts": ["*"],
+      "stackable": false,
+      "metadata": {
+        "campaign": "referral_program",
+        "priority": 2
+      }
+    },
+    {
+      "id": "black-friday-30",
+      "name": "Black Friday 30% Off",
+      "description": "Limited time holiday promotion",
+      "type": "percentage",
+      "value": 30.0,
+      "maxDiscount": "5000.00",
+      "currency": "USD",
+      "minPurchase": "100.00",
+      "usageLimit": 1,
+      "customerScope": "any",
+      "validDays": 7,
+      "applicableProducts": ["*"],
+      "stackable": false,
+      "startDate": "2026-11-27T00:00:00Z",
+      "endDate": "2026-12-01T23:59:59Z",
+      "metadata": {
+        "campaign": "black_friday_2026",
+        "priority": 5
+      }
+    },
+    {
+      "id": "beta-tester-lifetime-15",
+      "name": "Beta Tester Lifetime 15% Off",
+      "description": "Loyalty discount for early beta testers",
+      "type": "percentage",
+      "value": 15.0,
+      "maxDiscount": "1000.00",
+      "currency": "USD",
+      "minPurchase": "0.00",
+      "usageLimit": -1,
+      "customerScope": "whitelist",
+      "validDays": -1,
+      "applicableProducts": ["*"],
+      "stackable": true,
+      "recurring": true,
+      "metadata": {
+        "campaign": "beta_tester_loyalty",
+        "priority": 0
+      }
+    }
+  ],
+  "defaults": {
+    "maxStackedCoupons": 1,
+    "requireCode": true,
+    "codeFormat": "[A-Z0-9]{4,12}"
+  }
+}

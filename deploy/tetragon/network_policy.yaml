@@ -1,0 +1,349 @@
+# Cilium NetworkPolicy for KYC Vault Microservice Isolation
+# ============================================================
+# Zero-trust network policies enforcing least-privilege
+# communication between all KYC Vault services.
+
+---
+# ============================================================
+# Deny-all ingress and egress (base policy)
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-deny-all"
+  namespace: kyc-vault
+specs:
+  - endpointSelector: {}
+    ingress:
+      - {}
+    egress:
+      - {}
+---
+# ============================================================
+# API Gateway -> Services
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-api-gateway"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-api-gateway"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            "reserved:world": ""
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-orchestrator"
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-credential-service"
+      toPorts:
+        - ports:
+            - port: "9001"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-webhook-relay"
+      toPorts:
+        - ports:
+            - port: "9005"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-billing-service"
+      toPorts:
+        - ports:
+            - port: "9010"
+              protocol: TCP
+---
+# ============================================================
+# KYC Orchestrator (core workflow engine)
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-orchestrator"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-orchestrator"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-api-gateway"
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-webhook-relay"
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-ai-inference"
+      toPorts:
+        - ports:
+            - port: "9002"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-zkp-engine"
+      toPorts:
+        - ports:
+            - port: "9003"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-did-resolver"
+      toPorts:
+        - ports:
+            - port: "9004"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-credential-service"
+      toPorts:
+        - ports:
+            - port: "9001"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-compliance-service"
+      toPorts:
+        - ports:
+            - port: "9006"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: "vault.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: "redis.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: "kafka.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "9092"
+              protocol: TCP
+---
+# ============================================================
+# Credential Service (wasm runtime)
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-credential-service"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-credential-service"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-api-gateway"
+      toPorts:
+        - ports:
+            - port: "9001"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-orchestrator"
+      toPorts:
+        - ports:
+            - port: "9001"
+              protocol: TCP
+  egress:
+    - toFQDNs:
+        - matchName: "redis.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-ai-inference"
+      toPorts:
+        - ports:
+            - port: "9002"
+              protocol: TCP
+---
+# ============================================================
+# AI Inference Service
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-ai-inference"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-ai-inference"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-orchestrator"
+      toPorts:
+        - ports:
+            - port: "9002"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-credential-service"
+      toPorts:
+        - ports:
+            - port: "9002"
+              protocol: TCP
+  egress:
+    - toFQDNs:
+        - matchName: "vault.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+---
+# ============================================================
+# ZKP Engine
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-zkp-engine"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-zkp-engine"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-orchestrator"
+      toPorts:
+        - ports:
+            - port: "9003"
+              protocol: TCP
+  egress:
+    - toFQDNs:
+        - matchName: "redis.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+---
+# ============================================================
+# Webhook Relay
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-webhook-relay"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-webhook-relay"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-api-gateway"
+      toPorts:
+        - ports:
+            - port: "9005"
+              protocol: TCP
+  egress:
+    - toFQDNs:
+        - matchName: "kafka.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "9092"
+              protocol: TCP
+---
+# ============================================================
+# Compliance Service
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-compliance-service"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-compliance-service"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-orchestrator"
+      toPorts:
+        - ports:
+            - port: "9006"
+              protocol: TCP
+  egress:
+    - toFQDNs:
+        - matchName: "vault.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+---
+# ============================================================
+# Billing Service
+# ============================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "kyc-billing-service"
+  namespace: kyc-vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-billing-service"
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: "kyc-api-gateway"
+      toPorts:
+        - ports:
+            - port: "9010"
+              protocol: TCP
+  egress:
+    - toFQDNs:
+        - matchName: "redis.kyc-vault.internal"
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: "stripe.billing.internal"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

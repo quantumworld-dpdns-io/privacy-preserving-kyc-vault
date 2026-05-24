@@ -1,0 +1,75 @@
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+x509_extensions = v3_ca
+prompt = no
+
+[req_distinguished_name]
+C  = US
+ST = California
+L  = San Francisco
+O  = KYC Vault
+OU = Internal CA
+CN = KYC Vault Internal CA
+
+[v3_ca]
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints       = critical, CA:TRUE, pathlen:2
+keyUsage               = critical, keyCertSign, cRLSign, digitalSignature
+nsComment              = "KYC Vault Internal CA"
+
+[v3_req]
+basicConstraints     = CA:FALSE
+keyUsage             = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+extendedKeyUsage     = serverAuth, clientAuth, codeSigning
+subjectAltName       = @alt_names
+
+[server_cert]
+basicConstraints     = CA:FALSE
+keyUsage             = digitalSignature, keyEncipherment
+extendedKeyUsage     = serverAuth
+subjectAltName       = @alt_names
+
+[client_cert]
+basicConstraints     = CA:FALSE
+keyUsage             = digitalSignature, nonRepudiation
+extendedKeyUsage     = clientAuth
+
+[alt_names]
+DNS.1   = localhost
+DNS.2   = api-server
+DNS.3   = api-server.kyc-vault
+DNS.4   = api-server.kyc-vault.svc
+DNS.5   = orchestrator
+DNS.6   = orchestrator.kyc-vault
+DNS.7   = orchestrator.kyc-vault.svc
+DNS.8   = credential-service
+DNS.9   = credential-service.kyc-vault
+DNS.10  = credential-service.kyc-vault.svc
+DNS.11  = zkp-service
+DNS.12  = zkp-service.kyc-vault
+DNS.13  = zkp-service.kyc-vault.svc
+DNS.14  = compliance-service
+DNS.15  = compliance-service.kyc-vault
+DNS.16  = compliance-service.kyc-vault.svc
+DNS.17  = teaclave
+DNS.18  = teaclave.kyc-vault
+DNS.19  = teaclave.kyc-vault.svc
+DNS.20  = weaviate
+DNS.21  = weaviate.kyc-vault
+DNS.22  = weaviate.kyc-vault.svc
+DNS.23  = vault
+DNS.24  = vault.kyc-vault
+DNS.25  = vault.kyc-vault.svc
+DNS.26  = *.kyc-vault.svc
+DNS.27  = *.kyc-vault.svc.cluster.local
+IP.1    = 127.0.0.1
+IP.2    = ::1
+
+[crl_ext]
+authorityKeyIdentifier = keyid:always
+
+[ocsp]
+basicConstraints       = CA:FALSE
+extendedKeyUsage       = OCSPSigning

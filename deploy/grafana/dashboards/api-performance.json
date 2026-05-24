@@ -1,0 +1,153 @@
+{
+  "title": "API Performance Dashboard",
+  "uid": "api-performance",
+  "version": 1,
+  "schemaVersion": 36,
+  "panels": [
+    {
+      "title": "Request Latency (p50)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 }
+    },
+    {
+      "title": "Request Latency (p95)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "title": "Request Latency (p99)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 }
+    },
+    {
+      "title": "Throughput (Requests per Second)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[5m])) by (endpoint, method)",
+          "legendFormat": "{{method}} {{endpoint}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "title": "Error Rate by Endpoint",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (endpoint) / sum(rate(http_requests_total[5m])) by (endpoint) * 100",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    },
+    {
+      "title": "HTTP Status Code Distribution",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[5m])) by (status)",
+          "legendFormat": "HTTP {{status}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 }
+    },
+    {
+      "title": "Active Connections",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(http_active_connections) by (instance)",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 }
+    },
+    {
+      "title": "Request Body Size (p95)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_size_bytes_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 }
+    },
+    {
+      "title": "KYC Endpoint Latency Heatmap",
+      "type": "heatmap",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_request_duration_seconds_bucket{endpoint=~\"/api/v1/kyc.*\"}[5m])) by (le)",
+          "format": "heatmap"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 }
+    },
+    {
+      "title": "Global Error Budget (SLO 99.9%)",
+      "type": "singlestat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(1 - sum(rate(http_requests_total{status=~\"5..\"}[30d])) / sum(rate(http_requests_total[30d]))) * 100"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
+      "format": "percentUnit",
+      "thresholds": "99.9,99.99",
+      "colors": ["rgba(245, 54, 54, 0.9)", "rgba(237, 129, 40, 0.89)", "rgba(50, 172, 45, 0.97)"]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "endpoint",
+        "type": "query",
+        "query": "label_values(http_requests_total, endpoint)"
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "query": "label_values(http_requests_total, instance)"
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "datasource": "Loki",
+        "expr": "{app=\"api-server\"} |= \"error\"",
+        "name": "Error Events"
+      }
+    ]
+  }
+}

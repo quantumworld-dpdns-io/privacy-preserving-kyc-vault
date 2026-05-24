@@ -1,0 +1,153 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kyc-vault-api-ingress
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-buffering: "on"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://kyc-vault.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, X-API-Key, X-Request-ID"
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "1000"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: camera=(), microphone=(), geolocation=()";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+    cert-manager.io/cluster-issuer: "kyc-vault-cluster-issuer"
+spec:
+  tls:
+    - hosts:
+        - api.kyc-vault.com
+        - api.kyc-vault.internal
+      secretName: kyc-vault-api-tls-secret
+  rules:
+    - host: api.kyc-vault.com
+      http:
+        paths:
+          - path: /v1/credentials
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-credential-service
+                port:
+                  number: 9001
+          - path: /v1/presentations
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-credential-service
+                port:
+                  number: 9001
+          - path: /v1/did
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-did-resolver
+                port:
+                  number: 9004
+          - path: /v1/workflows
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-orchestrator
+                port:
+                  number: 9000
+          - path: /v1/compliance
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-compliance-service
+                port:
+                  number: 9006
+          - path: /v1/billing
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-billing-service
+                port:
+                  number: 9010
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: kyc-api-gateway
+                port:
+                  number: 8080
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: kyc-api-gateway
+                port:
+                  number: 9090
+    - host: api.kyc-vault.internal
+      http:
+        paths:
+          - path: /grpc
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-api-gateway
+                port:
+                  number: 8443
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-api-gateway
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kyc-vault-ws-ingress
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "kyc-orchestrator"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$http_x_request_id"
+    cert-manager.io/cluster-issuer: "kyc-vault-cluster-issuer"
+spec:
+  tls:
+    - hosts:
+        - ws.kyc-vault.com
+      secretName: kyc-vault-ws-tls-secret
+  rules:
+    - host: ws.kyc-vault.com
+      http:
+        paths:
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: kyc-orchestrator
+                port:
+                  number: 9000

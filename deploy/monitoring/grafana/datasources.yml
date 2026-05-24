@@ -1,0 +1,57 @@
+apiVersion: 1
+
+datasources:
+- name: Prometheus
+  type: prometheus
+  access: proxy
+  url: http://prometheus.monitoring:9090
+  isDefault: true
+  editable: false
+  jsonData:
+    timeInterval: 15s
+    queryTimeout: 60s
+    httpMethod: POST
+    prometheusType: Prometheus
+    prometheusVersion: 2.53.0
+
+- name: Loki
+  type: loki
+  access: proxy
+  url: http://loki.monitoring:3100
+  isDefault: false
+  editable: false
+  jsonData:
+    timeout: 60
+    maxLines: 1000
+    derivedFields:
+    - name: traceID
+      type: field
+      url:
+        datasource: Tempo
+        query: "${__value.raw}"
+      matcherRegex: "trace_id=(\\w+)"
+
+- name: Tempo
+  type: tempo
+  access: proxy
+  url: http://tempo.monitoring:3200
+  isDefault: false
+  editable: false
+  jsonData:
+    tracesToLogs:
+      datasourceUid: loki
+      tags:
+      - instance
+      - pod
+      - namespace
+      mappedTags:
+      - key: service.name
+        value: service
+      spanStartTimeShift: -5m
+      spanEndTimeShift: 5m
+    serviceMap:
+      datasourceUid: prometheus
+    nodeGraph:
+      enabled: true
+    search:
+      hide: false

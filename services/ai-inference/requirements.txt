@@ -1,0 +1,16 @@
+numpy>=2.0
+pandas>=2.2
+scikit-learn>=1.6
+torch>=2.5
+transformers>=4.47
+sentence-transformers>=3.3
+opentelemetry-api>=1.29
+opentelemetry-sdk>=1.29
+Pillow>=11.0
+pytesseract>=0.3.13
+opencv-python>=4.10
+pycountry>=24.6
+pydantic>=2.10
+fastapi>=0.115
+uvicorn>=0.34
+python-multipart>=0.0.18

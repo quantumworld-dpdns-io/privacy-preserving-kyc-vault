@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "outDir": "../../dist/apps/dashboard",
+    "rootDir": "src",
+    "noEmit": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@kyc-vault/core": ["../../packages/core/src"],
+      "@kyc-vault/did": ["../../packages/did/src"],
+      "@kyc-vault/zkp": ["../../packages/zkp/src"],
+      "@kyc-vault/crypto": ["../../packages/crypto/src"],
+      "@kyc-vault/api": ["../../packages/api/src"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/did" },
+    { "path": "../../packages/zkp" },
+    { "path": "../../packages/crypto" },
+    { "path": "../../packages/api" }
+  ]
+}

@@ -1,0 +1,30 @@
+[package]
+name = "did-resolve"
+version = "1.0.0"
+description = "Fermyon Spin HTTP handler for DID resolution in KYC Vault"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+
+[package.metadata.spin]
+manifest = "spin.toml"
+
+[dependencies]
+spin-sdk = { version = "3.0", features = ["http", "key-value"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+chrono = { version = "0.4", features = ["serde"] }
+url = "2"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "z"
+strip = true

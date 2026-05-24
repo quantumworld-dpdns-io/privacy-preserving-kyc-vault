@@ -1,0 +1,379 @@
+# GraphQL query examples for the KYC Vault
+#
+# These queries target the GraphQL endpoint at:
+#   https://api.kyc-vault.com/v1/graphql
+#
+# Authentication: Bearer token in the Authorization header
+#
+# You can run these with:
+#   curl -X POST https://api.kyc-vault.com/v1/graphql \
+#     -H "Authorization: Bearer <token>" \
+#     -H "Content-Type: application/json" \
+#     -d '{"query": "query { ... }"}'
+
+# =============================================================================
+# Credentials
+# =============================================================================
+
+# Fetch a credential by ID
+query GetCredential($id: ID!) {
+  credential(id: $id) {
+    id
+    type
+    issuer
+    issuanceDate
+    expirationDate
+    credentialSubject {
+      id
+      claims
+    }
+    proof {
+      type
+      created
+      verificationMethod
+      proofPurpose
+    }
+    credentialStatus {
+      type
+      revoked
+      suspended
+    }
+    schema {
+      id
+      type
+    }
+  }
+}
+
+# List credentials for a subject DID with pagination
+query ListCredentials($subjectDid: String!, $first: Int, $after: String) {
+  credentials(subjectDid: $subjectDid, first: $first, after: $after) {
+    edges {
+      node {
+        id
+        type
+        issuer
+        issuanceDate
+        expirationDate
+        credentialSubject {
+          id
+        }
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    totalCount
+  }
+}
+
+# Issue a new credential
+mutation IssueCredential($input: IssueCredentialInput!) {
+  issueCredential(input: $input) {
+    credential {
+      id
+      type
+      issuer
+      issuanceDate
+      credentialSubject {
+        id
+      }
+      proof {
+        proofValue
+      }
+    }
+    status
+    errors
+  }
+}
+
+# Revoke a credential
+mutation RevokeCredential($credentialId: ID!, $reason: String) {
+  revokeCredential(credentialId: $credentialId, reason: $reason) {
+    success
+    credentialId
+    revokedAt
+    reason
+  }
+}
+
+# Verify a credential
+query VerifyCredential($credentialId: ID!) {
+  verifyCredential(credentialId: $credentialId) {
+    valid
+    errors
+    schemaValid
+    proofValid
+    notExpired
+    verifiedAt
+  }
+}
+
+# =============================================================================
+# DID Resolution
+# =============================================================================
+
+# Resolve a DID document
+query ResolveDID($did: String!) {
+  resolveDID(did: $did) {
+    id
+    context
+    controller
+    verificationMethod {
+      id
+      type
+      controller
+      publicKeyMultibase
+    }
+    authentication
+    assertionMethod
+    keyAgreement
+    service {
+      id
+      type
+      serviceEndpoint
+    }
+    created
+    updated
+  }
+}
+
+# =============================================================================
+# KYC Workflows
+# =============================================================================
+
+# Get KYC workflow status
+query GetKYCWorkflow($workflowId: ID!) {
+  kycWorkflow(id: $workflowId) {
+    id
+    state
+    subjectDid
+    tier
+    platformId
+    createdAt
+    updatedAt
+    documents {
+      id
+      documentType
+      status
+      uploadedAt
+      verifiedAt
+    }
+    reviews {
+      reviewerDid
+      decision
+      reason
+      reviewedAt
+    }
+    history {
+      eventType
+      timestamp
+      actor
+      detail
+    }
+  }
+}
+
+# Start a KYC verification workflow
+mutation StartKYCWorkflow($input: KYCWorkflowInput!) {
+  startKYCWorkflow(input: $input) {
+    workflow {
+      id
+      state
+      createdAt
+    }
+    status
+    workflowVersion
+  }
+}
+
+# List workflows for an applicant
+query ListKYCWorkflows($applicantDid: String!, $states: [KYCState!], $first: Int) {
+  kycWorkflows(applicantDid: $applicantDid, states: $states, first: $first) {
+    edges {
+      node {
+        id
+        state
+        tier
+        createdAt
+      }
+    }
+    totalCount
+  }
+}
+
+# =============================================================================
+# AI Inference
+# =============================================================================
+
+# Classify a document
+mutation ClassifyDocument($input: ClassifyDocumentInput!) {
+  classifyDocument(input: $input) {
+    documentId
+    predictedType
+    confidence
+    attributes
+    tamperScore
+    processingTimeMs
+  }
+}
+
+# Liveness check
+mutation LivenessCheck($input: LivenessCheckInput!) {
+  livenessCheck(input: $input) {
+    sessionId
+    live
+    confidence
+    spoofScore
+    faceMatch
+  }
+}
+
+# Fraud detection
+query FraudDetection($verificationId: ID!, $applicantId: String!) {
+  fraudDetection(verificationId: $verificationId, applicantId: $applicantId) {
+    riskScore
+    riskLevel
+    indicators
+    recommendation
+  }
+}
+
+# =============================================================================
+# ZKP Proofs
+# =============================================================================
+
+# Generate a ZKP proof
+mutation GenerateProof($input: ProofRequestInput!) {
+  generateProof(input: $input) {
+    proofId
+    proof
+    publicOutputs
+    circuitId
+    provingTimeMs
+  }
+}
+
+# Verify a ZKP proof
+query VerifyProof($proofId: ID!) {
+  verifyProof(proofId: $proofId) {
+    verified
+    circuitId
+    verificationTimeMs
+    publicOutputs
+  }
+}
+
+# List available circuits
+query ListCircuits {
+  circuits {
+    id
+    name
+    description
+    system
+    publicInputCount
+    privateInputCount
+    constraintCount
+  }
+}
+
+# =============================================================================
+# Commerce
+# =============================================================================
+
+# Create a checkout session
+mutation CreateCheckoutSession($input: CheckoutInput!) {
+  createCheckoutSession(input: $input) {
+    sessionId
+    url
+    amount
+    currency
+    status
+    items {
+      productId
+      quantity
+      price
+    }
+  }
+}
+
+# =============================================================================
+# Billing
+# =============================================================================
+
+# Get billing usage for a period
+query GetUsage($customerDid: String!, $startDate: Date!, $endDate: Date!) {
+  usage(customerDid: $customerDid, startDate: $startDate, endDate: $endDate) {
+    totalCalls
+    byEndpoint {
+      endpoint
+      count
+    }
+    estimatedCost
+  }
+}
+
+# =============================================================================
+# Fragments (reusable)
+# =============================================================================
+
+fragment CredentialSummary on VerifiableCredential {
+  id
+  type
+  issuer
+  issuanceDate
+  expirationDate
+  credentialSubject {
+    id
+  }
+}
+
+fragment WorkflowSummary on KYCWorkflow {
+  id
+  state
+  tier
+  createdAt
+  updatedAt
+}
+
+# =============================================================================
+# Variables example (for mutations/queries with variables)
+# =============================================================================
+
+# Variables for IssueCredential:
+# {
+#   "input": {
+#     "schemaId": "https://schema.kyc-vault.com/passport-v1.json",
+#     "subject": {
+#       "id": "did:kyc:subject:alice-001",
+#       "firstName": "Alice",
+#       "lastName": "Smith",
+#       "dateOfBirth": "1990-06-15",
+#       "nationality": "US"
+#     },
+#     "issuerDid": "did:kyc:issuer:vault-001",
+#     "expirySeconds": 7776000
+#   }
+# }
+#
+# Variables for StartKYCWorkflow:
+# {
+#   "input": {
+#     "applicantId": "did:kyc:applicant:789",
+#     "documents": [
+#       {
+#         "id": "doc-1",
+#         "type": "passport",
+#         "imageData": "<base64>",
+#         "metadata": {}
+#       }
+#     ],
+#     "options": {
+#       "requireLiveness": true,
+#       "requireFraudCheck": true,
+#       "complianceJurisdiction": "US"
+#     }
+#   }
+# }

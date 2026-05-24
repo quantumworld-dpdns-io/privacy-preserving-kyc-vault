@@ -1,0 +1,83 @@
+name: Performance Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      vus:
+        description: "Number of virtual users"
+        required: true
+        default: "100"
+        type: string
+      duration:
+        description: "Test duration (e.g. 30s, 5m)"
+        required: true
+        default: "1m"
+        type: string
+  schedule:
+    - cron: "0 6 * * 1-5"
+
+env:
+  K6_CLOUD_TOKEN: ${{ secrets.K6_CLOUD_TOKEN }}
+  K6_PROJECT_ID: ${{ vars.K6_PROJECT_ID }}
+  STAGING_URL: ${{ vars.STAGING_URL }}
+  THRESHOLD_P95: 2000
+  THRESHOLD_ERROR_RATE: 1
+
+jobs:
+  k6-load-test:
+    name: Run k6 Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          curl -sL https://github.com/grafana/k6/releases/download/v0.52.0/k6-v0.52.0-linux-amd64.tar.gz | \
+            tar xz --strip-components=1 -C /usr/local/bin k6-v0.52.0-linux-amd64/k6
+
+      - name: Verify k6 installation
+        run: k6 version
+
+      - name: Run performance tests
+        run: |
+          k6 run \
+            --vus ${{ github.event.inputs.vus || '100' }} \
+            --duration ${{ github.event.inputs.duration || '1m' }} \
+            --out json=perf-results.json \
+            --tag test_run=${{ github.sha }} \
+            tests/performance/smoke-test.js
+        env:
+          BASE_URL: ${{ env.STAGING_URL }}
+
+      - name: Parse and check thresholds
+        run: |
+          P95=$(jq '[.metrics | select(.http_req_duration) | .http_req_duration.values | ."p(95)"] | add // 0' perf-results.json)
+          ERROR_RATE=$(jq '[.metrics | select(.http_req_failed) | .http_req_failed.values | .rate] | add // 0' perf-results.json)
+          echo "p95: ${P95}ms | error_rate: $(echo "$ERROR_RATE * 100" | bc)%"
+          if (( $(echo "$P95 > $THRESHOLD_P95" | bc -l) )); then
+            echo "::error::p95 latency ${P95}ms exceeds threshold ${THRESHOLD_P95}ms"
+            exit 1
+          fi
+          if (( $(echo "$ERROR_RATE * 100 > $THRESHOLD_ERROR_RATE" | bc -l) )); then
+            echo "::error::Error rate $(echo "$ERROR_RATE * 100" | bc)% exceeds threshold ${THRESHOLD_ERROR_RATE}%"
+            exit 1
+          fi
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ github.sha }}
+          path: perf-results.json
+          retention-days: 30
+
+      - name: Notify on regression
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_PERF_CHANNEL }}",
+              "text": ":chart_with_downwards_trend: Performance regression detected in ${{ github.repository }}!\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

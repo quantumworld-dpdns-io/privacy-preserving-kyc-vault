@@ -1,0 +1,129 @@
+filebeat.inputs:
+  - type: container
+    enabled: true
+    paths:
+      - /var/log/containers/*.log
+    processors:
+      - add_kubernetes_metadata:
+          host: ${NODE_NAME}
+          matchers:
+            - logs_path:
+                logs_path: /var/log/containers/
+      - decode_json_fields:
+          fields: ["message"]
+          target: "json"
+          overwrite_keys: true
+          add_error_key: true
+          max_message_size: 102400
+
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/audit/*.log
+    fields:
+      log_type: audit
+    multiline:
+      pattern: '^\d{4}-\d{2}-\d{2}'
+      negate: true
+      match: after
+    processors:
+      - add_fields:
+          target: ""
+          fields:
+            log_type: audit
+
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/secure
+      - /var/log/auth.log
+    fields:
+      log_type: auth
+    processors:
+      - add_fields:
+          target: ""
+          fields:
+            log_type: auth
+
+  - type: tcp
+    enabled: true
+    host: "0.0.0.0"
+    port: 5044
+    fields:
+      log_type: syslog
+    processors:
+      - add_fields:
+          target: ""
+          fields:
+            log_type: syslog
+
+processors:
+  - add_host_metadata:
+      netinfo.enabled: true
+  - add_cloud_metadata: ~
+  - add_docker_metadata:
+      host: ${DOCKER_HOST}
+  - timestamp:
+      field: "@timestamp"
+      layouts:
+        - "2006-01-02T15:04:05.999Z"
+        - "2006-01-02T15:04:05.999-07:00"
+        - "2006-01-02T15:04:05.999Z07:00"
+      test:
+        - "2024-12-15T10:30:45.123Z"
+  - drop_fields:
+      fields: ["agent", "ecs", "host.architecture", "host.id", "host.mac"]
+
+output.elasticsearch:
+  hosts: ${ELASTICSEARCH_HOSTS:localhost:9200}
+  username: ${ELASTICSEARCH_USERNAME:elastic}
+  password: ${ELASTICSEARCH_PASSWORD:changeme}
+  protocol: https
+  ssl.verification_mode: ${ELASTICSEARCH_SSL_VERIFY:full}
+  ssl.certificate_authorities: ["/etc/filebeat/certs/ca.crt"]
+  ssl.certificate: "/etc/filebeat/certs/filebeat.crt"
+  ssl.key: "/etc/filebeat/certs/filebeat.key"
+  index: "filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+  pipeline: "geoip-info"
+  bulk_max_size: 1600
+  worker: 4
+  flush_interval: 1s
+  timeout: 90
+
+output.logstash:
+  enabled: false
+  hosts: ${LOGSTASH_HOSTS:localhost:5044}
+  ssl.certificate_authorities: ["/etc/filebeat/certs/ca.crt"]
+  ssl.certificate: "/etc/filebeat/certs/filebeat.crt"
+  ssl.key: "/etc/filebeat/certs/filebeat.key"
+
+setup.template.settings:
+  index.number_of_shards: 3
+  index.number_of_replicas: 1
+  index.codec: best_compression
+  index.refresh_interval: 30s
+
+setup.kibana:
+  host: ${KIBANA_HOST:localhost:5601}
+  username: ${ELASTICSEARCH_USERNAME:elastic}
+  password: ${ELASTICSEARCH_PASSWORD:changeme}
+
+logging.level: info
+logging.selectors: ["*"]
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat.log
+  rotateeverybytes: 104857600
+  keepfiles: 7
+  permissions: 0600
+
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout: 1s
+
+path.home: /usr/share/filebeat
+path.config: /usr/share/filebeat
+path.data: /usr/share/filebeat/data
+path.logs: /usr/share/filebeat/logs

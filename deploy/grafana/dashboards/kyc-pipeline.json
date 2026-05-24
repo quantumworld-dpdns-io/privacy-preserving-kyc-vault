@@ -1,0 +1,207 @@
+{
+  "title": "KYC Pipeline Monitoring",
+  "uid": "kyc-pipeline",
+  "version": 1,
+  "tags": ["kyc-vault", "pipeline", "monitoring"],
+  "schemaVersion": 39,
+  "timezone": "utc",
+  "editable": true,
+  "panels": [
+    {
+      "title": "KYC Pipeline Overview",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "sum(kyc_verifications_total{status=\"approved\"})",
+        "legendFormat": "Approved"
+      }]
+    },
+    {
+      "title": "Total Verifications",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(kyc_verifications_total[5m]))",
+        "legendFormat": "Verifications/sec"
+      }]
+    },
+    {
+      "title": "Verification Success Rate",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 90 },
+              { "color": "green", "value": 99 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(kyc_verifications_total{status=\"approved\"}[5m])) / sum(rate(kyc_verifications_total[5m])) * 100",
+        "legendFormat": "Success Rate"
+      }]
+    },
+    {
+      "title": "Average Processing Time",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 2000 },
+              { "color": "red", "value": 5000 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(kyc_verification_duration_seconds_bucket[5m])) by (le))",
+        "legendFormat": "p95"
+      }]
+    },
+    {
+      "title": "Pipeline Stages - Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(kyc_pipeline_stage_duration_seconds_count{stage=\"document_upload\"}[5m]))",
+          "legendFormat": "Document Upload"
+        },
+        {
+          "expr": "sum(rate(kyc_pipeline_stage_duration_seconds_count{stage=\"document_classification\"}[5m]))",
+          "legendFormat": "Classification"
+        },
+        {
+          "expr": "sum(rate(kyc_pipeline_stage_duration_seconds_count{stage=\"liveness_check\"}[5m]))",
+          "legendFormat": "Liveness"
+        },
+        {
+          "expr": "sum(rate(kyc_pipeline_stage_duration_seconds_count{stage=\"fraud_assessment\"}[5m]))",
+          "legendFormat": "Fraud Check"
+        },
+        {
+          "expr": "sum(rate(kyc_pipeline_stage_duration_seconds_count{stage=\"compliance_check\"}[5m]))",
+          "legendFormat": "Compliance"
+        },
+        {
+          "expr": "sum(rate(kyc_pipeline_stage_duration_seconds_count{stage=\"decision\"}[5m]))",
+          "legendFormat": "Decision"
+        }
+      ]
+    },
+    {
+      "title": "Pipeline Stage Duration (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(kyc_pipeline_stage_duration_seconds_bucket[5m])) by (le, stage))",
+          "legendFormat": "{{stage}}"
+        }
+      ]
+    },
+    {
+      "title": "Fraud Detection Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 20 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(kyc_fraud_detections_total[5m])) by (severity)",
+        "legendFormat": "{{severity}}"
+      }]
+    },
+    {
+      "title": "Compliance Clearance Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 20 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(kyc_compliance_checks_total{status=\"cleared\"}[5m])) / sum(rate(kyc_compliance_checks_total[5m])) * 100",
+        "legendFormat": "Clearance Rate"
+      }]
+    },
+    {
+      "title": "Verification Decision Breakdown",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 26 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "expr": "sum(kyc_verifications_total) by (status)",
+        "legendFormat": "{{status}}"
+      }]
+    },
+    {
+      "title": "Error Rate by Stage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 26 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": { "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(kyc_pipeline_errors_total[5m])) by (stage) / sum(rate(kyc_pipeline_stage_duration_seconds_count[5m])) by (stage) * 100",
+        "legendFormat": "{{stage}}"
+      }]
+    }
+  ]
+}

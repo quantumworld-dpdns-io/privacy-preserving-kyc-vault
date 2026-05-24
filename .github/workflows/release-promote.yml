@@ -1,0 +1,117 @@
+name: Release Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      promote_from:
+        description: "Environment to promote from"
+        required: true
+        type: choice
+        options:
+          - staging
+          - alpha
+          - beta
+      promote_to:
+        description: "Environment to promote to"
+        required: true
+        type: choice
+        options:
+          - staging
+          - beta
+          - production
+      image_tag:
+        description: "Docker image tag to promote"
+        required: true
+        type: string
+      skip_tests:
+        description: "Skip validation tests"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+  deployments: write
+
+jobs:
+  validate:
+    name: Validate Promotion
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_tests != 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify image in source environment
+        run: |
+          echo "Verifying image ${{ github.event.inputs.image_tag }} in ${{ github.event.inputs.promote_from }}..."
+          aws ecr describe-images \
+            --repository-name ${{ vars.ECR_REPOSITORY }} \
+            --image-ids imageTag=${{ github.event.inputs.image_tag }} \
+            --region us-east-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Run smoke tests on source
+        run: |
+          URL_VAR="${{ github.event.inputs.promote_from }}_URL"
+          SOURCE_URL="${!URL_VAR}"
+          ./scripts/smoke-test.sh "$SOURCE_URL"
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          ALPHA_URL: ${{ vars.ALPHA_URL }}
+          BETA_URL: ${{ vars.BETA_URL }}
+
+  promote:
+    name: Promote to ${{ github.event.inputs.promote_to }}
+    runs-on: ubuntu-latest
+    needs: validate
+    if: always() && (needs.validate.result == 'success' || github.event.inputs.skip_tests == 'true')
+    environment:
+      name: ${{ github.event.inputs.promote_to }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          KUBE_SECRET="KUBE_CONFIG_${{ github.event.inputs.promote_to == 'production' && 'PRODUCTION' || 'STAGING' }}"
+          echo "${!KUBE_SECRET}" > $HOME/.kube/config
+
+      - name: Update image in target environment
+        run: |
+          NAMESPACE="${{ github.event.inputs.promote_to }}"
+          kubectl set image deployment/app \
+            -n "$NAMESPACE" \
+            app=${{ vars.ECR_REGISTRY }}/${{ vars.ECR_REPOSITORY }}:${{ github.event.inputs.image_tag }}
+          kubectl rollout status deployment/app \
+            -n "$NAMESPACE" --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n ${{ github.event.inputs.promote_to }} -o wide
+          kubectl get svc -n ${{ github.event.inputs.promote_to }}
+
+  finalize:
+    name: Finalize Promotion
+    runs-on: ubuntu-latest
+    needs: promote
+    steps:
+      - name: Tag promotion
+        run: |
+          echo "Promoted ${{ github.event.inputs.image_tag }} from ${{ github.event.inputs.promote_from }} to ${{ github.event.inputs.promote_to }}"
+          echo "promote_from=${{ github.event.inputs.promote_from }}" >> $GITHUB_STEP_SUMMARY
+          echo "promote_to=${{ github.event.inputs.promote_to }}" >> $GITHUB_STEP_SUMMARY
+          echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "status=success" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_DEPLOY_CHANNEL }}",
+              "text": ":arrow_up: Promotion complete\nFrom: \`${{ github.event.inputs.promote_from }}\` → \`${{ github.event.inputs.promote_to }}\`\nTag: \`${{ github.event.inputs.image_tag }}\`"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

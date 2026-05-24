@@ -1,0 +1,18 @@
+[package]
+name = "kyc-vault-did"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+multibase = "0.9"
+multikey = "0.2"
+reqwest = { version = "0.12", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }

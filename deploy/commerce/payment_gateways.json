@@ -1,0 +1,153 @@
+{
+  "gateways": [
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "type": "card",
+      "enabled": true,
+      "currencies": ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "SGD", "HKD"],
+      "fees": {
+        "percentage": 2.9,
+        "fixedFee": "0.30",
+        "currency": "USD",
+        "internationalPercentage": 1.5,
+        "internationalFixedFee": "0.00"
+      },
+      "supportedPaymentMethods": [
+        "card",
+        "apple_pay",
+        "google_pay",
+        "alipay",
+        "wechat_pay",
+        "ideal",
+        "sepa_debit",
+        "bancontact",
+        "sofort",
+        "giropay"
+      ],
+      "minAmount": "0.50",
+      "maxAmount": "999999.99",
+      "settlementTime": "2-3 business days",
+      "webhookEvents": [
+        "payment_intent.succeeded",
+        "payment_intent.payment_failed",
+        "charge.refunded",
+        "charge.dispute.created"
+      ],
+      "metadata": {
+        "apiVersion": "2023-10-16",
+        "docsUrl": "https://stripe.com/docs"
+      }
+    },
+    {
+      "id": "paddle",
+      "name": "Paddle",
+      "type": "merchant_of_record",
+      "enabled": true,
+      "currencies": ["USD", "EUR", "GBP"],
+      "fees": {
+        "percentage": 5.0,
+        "fixedFee": "0.50",
+        "currency": "USD",
+        "internationalPercentage": 0.0,
+        "internationalFixedFee": "0.00"
+      },
+      "supportedPaymentMethods": [
+        "card",
+        "paypal",
+        "apple_pay",
+        "google_pay",
+        "ideal",
+        "sepa_debit"
+      ],
+      "minAmount": "2.00",
+      "maxAmount": "999999.99",
+      "settlementTime": "7 days",
+      "webhookEvents": [
+        "subscription_created",
+        "subscription_updated",
+        "subscription_cancelled",
+        "transaction.completed",
+        "transaction.paid"
+      ],
+      "metadata": {
+        "handlesTax": true,
+        "handlesVat": true,
+        "docsUrl": "https://paddle.com/docs"
+      }
+    },
+    {
+      "id": "usdc",
+      "name": "USDC (Ethereum)",
+      "type": "crypto_stablecoin",
+      "enabled": true,
+      "currencies": ["USDC"],
+      "fees": {
+        "percentage": 1.0,
+        "fixedFee": "0.00",
+        "currency": "USDC",
+        "gasEstimate": "0.005",
+        "gasCurrency": "ETH"
+      },
+      "supportedPaymentMethods": [
+        "wallet_connect",
+        "metamask",
+        "coinbase_wallet",
+        "ledger"
+      ],
+      "minAmount": "1.00",
+      "maxAmount": "1000000.00",
+      "settlementTime": "1-10 minutes (on-chain confirmations)",
+      "network": {
+        "chainId": 1,
+        "networkName": "Ethereum Mainnet",
+        "tokenAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "decimals": 6,
+        "blockExplorer": "https://etherscan.io/token/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+      },
+      "webhookEvents": [
+        "transfer.confirmed",
+        "transfer.failed"
+      ]
+    },
+    {
+      "id": "eth",
+      "name": "Ether (Ethereum)",
+      "type": "crypto_native",
+      "enabled": true,
+      "currencies": ["ETH"],
+      "fees": {
+        "percentage": 1.0,
+        "fixedFee": "0.00",
+        "currency": "ETH",
+        "gasEstimate": "0.003",
+        "gasCurrency": "ETH"
+      },
+      "supportedPaymentMethods": [
+        "wallet_connect",
+        "metamask",
+        "coinbase_wallet",
+        "ledger"
+      ],
+      "minAmount": "0.01",
+      "maxAmount": "1000.00",
+      "settlementTime": "1-10 minutes (on-chain confirmations)",
+      "network": {
+        "chainId": 1,
+        "networkName": "Ethereum Mainnet",
+        "blockExplorer": "https://etherscan.io"
+      },
+      "webhookEvents": [
+        "transfer.confirmed",
+        "transfer.failed"
+      ]
+    }
+  ],
+  "defaultGateway": "stripe",
+  "fallbackChain": ["stripe", "paddle", "usdc"],
+  "retryPolicy": {
+    "maxRetries": 3,
+    "initialDelayMs": 1000,
+    "backoffMultiplier": 2
+  }
+}

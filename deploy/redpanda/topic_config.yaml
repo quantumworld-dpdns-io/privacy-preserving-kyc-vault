@@ -1,0 +1,46 @@
+topics:
+  - name: credential.events
+    partitions: 6
+    replication_factor: 3
+    config:
+      cleanup.policy: compact
+      retention.ms: 604800000
+      retention.bytes: 53687091200
+      compression.type: zstd
+      message.max.bytes: 1048576
+
+  - name: credential.verifications
+    partitions: 6
+    replication_factor: 3
+    config:
+      cleanup.policy: delete
+      retention.ms: 2592000000
+      retention.bytes: 107374182400
+      compression.type: lz4
+      message.max.bytes: 2097152
+
+  - name: credential.revocation
+    partitions: 3
+    replication_factor: 3
+    config:
+      cleanup.policy: compact
+      retention.ms: -1
+      compression.type: zstd
+      message.max.bytes: 524288
+
+  - name: audit.access_logs
+    partitions: 3
+    replication_factor: 3
+    config:
+      cleanup.policy: delete
+      retention.ms: 7776000000
+      retention.bytes: 214748364800
+      compression.type: zstd
+
+  - name: platform.events
+    partitions: 3
+    replication_factor: 3
+    config:
+      cleanup.policy: delete
+      retention.ms: 2592000000
+      compression.type: snappy

@@ -1,0 +1,113 @@
+name: Configuration Change
+description: Request a configuration or infrastructure change
+title: "[Config] "
+labels: [configuration, triage]
+type: Task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to request infrastructure, CI/CD, or application configuration changes.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Config Category
+      description: Area of configuration
+      options:
+        - CI/CD pipeline
+        - infrastructure / Terraform
+        - Kubernetes / Helm
+        - application config
+        - environment variables
+        - secrets / credentials
+        - monitoring / observability
+        - rate limits / quotas
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Target Environment
+      description: Which environment is affected?
+      multiple: true
+      options:
+        - local
+        - development
+        - staging
+        - production
+        - all
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - critical (urgent, blocking)
+        - high (necessary soon)
+        - medium (when convenient)
+        - low (nice to have)
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Configuration
+      description: What is the current configuration?
+      placeholder: |
+        Current value or behavior
+      render: yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired
+    attributes:
+      label: Desired Configuration
+      description: What should the configuration be?
+      placeholder: |
+        Desired value or behavior
+      render: yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: Why is this change needed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact Assessment
+      description: What is the impact of this change?
+      placeholder: Performance, security, cost, etc.
+
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback Plan
+      description: How would we revert this change?
+      placeholder: Steps to rollback
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      options:
+        - label: I have checked existing config change requests
+          required: true
+        - label: I have considered security implications
+          required: true
+        - label: I have a rollback plan
+          required: true

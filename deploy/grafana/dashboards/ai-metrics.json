@@ -1,0 +1,159 @@
+{
+  "title": "AI Model Metrics Dashboard",
+  "uid": "ai-metrics",
+  "version": 1,
+  "schemaVersion": 36,
+  "panels": [
+    {
+      "title": "Inference Latency (p50/p95/p99)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(ai_inference_duration_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "p50 {{model}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ai_inference_duration_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "p95 {{model}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(ai_inference_duration_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "p99 {{model}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "title": "Inference Accuracy Score",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "ai_inference_accuracy_score",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "thresholds": [
+        { "value": 0.95, "color": "rgba(245, 54, 54, 0.9)" },
+        { "value": 0.98, "color": "rgba(237, 129, 40, 0.89)" },
+        { "value": 0.99, "color": "rgba(50, 172, 45, 0.97)" }
+      ]
+    },
+    {
+      "title": "Token Usage per Minute",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(ai_token_usage_total[5m])) by (model, token_type)",
+          "legendFormat": "{{model}} - {{token_type}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 }
+    },
+    {
+      "title": "Liveness Detection Confidence",
+      "type": "gauge",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "avg(ai_liveness_confidence_score) by (model)"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "thresholds": [
+        { "value": 0.7, "color": "rgba(245, 54, 54, 0.9)" },
+        { "value": 0.85, "color": "rgba(237, 129, 40, 0.89)" },
+        { "value": 0.95, "color": "rgba(50, 172, 45, 0.97)" }
+      ]
+    },
+    {
+      "title": "Document Classification Distribution",
+      "type": "pie",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(ai_document_classifications_total) by (doc_type)",
+          "legendFormat": "{{doc_type}}"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 8 }
+    },
+    {
+      "title": "Model Inference Count by Version",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(ai_inferences_total[5m])) by (model, version)",
+          "legendFormat": "{{model}} v{{version}}"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 8 }
+    },
+    {
+      "title": "Overspill Rate (Rejection Due to Low Confidence)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(ai_overspill_total[5m])) by (reason)",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 8 }
+    },
+    {
+      "title": "Facial Comparison ROC AUC",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "ai_facial_comparison_roc_auc"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 14 }
+    },
+    {
+      "title": "GPU Memory Usage",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes * 100",
+          "legendFormat": "GPU {{gpu}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "unit": "percent"
+    },
+    {
+      "title": "Batch Processing Throughput",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(ai_batch_processed_total[5m])) by (pipeline)",
+          "legendFormat": "{{pipeline}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "type": "query",
+        "query": "label_values(ai_inference_duration_seconds_count, model)"
+      },
+      {
+        "name": "pipeline",
+        "type": "query",
+        "query": "label_values(ai_batch_processed_total, pipeline)"
+      }
+    ]
+  }
+}

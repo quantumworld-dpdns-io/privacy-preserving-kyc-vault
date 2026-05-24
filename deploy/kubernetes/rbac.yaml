@@ -1,0 +1,170 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kyc-pod-reader
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kyc-deployment-manager
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kyc-secret-reader
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kyc-leader-election
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kyc-pod-reader-binding
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: kyc-health-checker
+    namespace: kyc-vault
+roleRef:
+  kind: Role
+  name: kyc-pod-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kyc-secret-reader-binding
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: kyc-api-server
+    namespace: kyc-vault
+roleRef:
+  kind: Role
+  name: kyc-secret-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kyc-leader-election-binding
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: kyc-kyc-worker
+    namespace: kyc-vault
+  - kind: ServiceAccount
+    name: kyc-event-bus
+    namespace: kyc-vault
+  - kind: ServiceAccount
+    name: kyc-oracle-worker
+    namespace: kyc-vault
+roleRef:
+  kind: Role
+  name: kyc-leader-election
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyc-metrics-reader
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyc-nodes-viewer
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "nodes/status", "nodes/metrics"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kyc-metrics-reader-binding
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: kyc-health-checker
+    namespace: kyc-vault
+roleRef:
+  kind: ClusterRole
+  name: kyc-metrics-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kyc-nodes-viewer-binding
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: kyc-health-checker
+    namespace: kyc-vault
+  - kind: ServiceAccount
+    name: kyc-metrics-export
+    namespace: kyc-vault
+roleRef:
+  kind: ClusterRole
+  name: kyc-nodes-viewer
+  apiGroup: rbac.authorization.k8s.io

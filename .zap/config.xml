@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config version="2.14.0">
+  <version>2.14.0</version>
+  <project>KYC Vault Security Scan</project>
+  <desc>Automated OWASP ZAP configuration for KYC Vault API security scanning</desc>
+
+  <maxChildren>20</maxChildren>
+  <maxDuration>60</maxDuration>
+  <context>
+    <name>kyc-vault-api</name>
+    <desc>KYC Vault API Target</desc>
+    <urls>
+      <url>https://api.kyc-vault.com</url>
+      <url>https://api.kyc-vault.com/v1</url>
+    </urls>
+    <includePaths>
+      <path>https://api.kyc-vault.com/v1/.*</path>
+    </includePaths>
+    <excludePaths>
+      <path>https://api.kyc-vault.com/v1/health</path>
+      <path>https://api.kyc-vault.com/v1/metrics</path>
+    </excludePaths>
+    <authentication>
+      <type>bearer</type>
+      <token>${ZAP_AUTH_TOKEN}</token>
+      <headerName>Authorization</headerName>
+    </authentication>
+    <users>
+      <user>zap-scanner</user>
+    </users>
+  </context>
+
+  <scanner>
+    <level>MEDIUM</level>
+    <scanThreads>5</scanThreads>
+    <alertThreshold>50</alertThreshold>
+    <attackStrength>DEFAULT</attackStrength>
+    <enablePassiveScan>true</enablePassiveScan>
+    <enableActiveScan>true</enableActiveScan>
+
+    <passiveScanConfig>
+      <maxAlertsPerRule>50</maxAlertsPerRule>
+      <waitTimeInMs>500</waitTimeInMs>
+    </passiveScanConfig>
+
+    <activeScanConfig>
+      <defaultPolicy>Default Policy</defaultPolicy>
+      <maxRuleDurationInMins>60</maxRuleDurationInMins>
+      <maxScanDurationInMins>480</maxScanDurationInMins>
+      <delayInMs>200</delayInMs>
+      <handleAntiCSRFTokens>true</handleAntiCSRFTokens>
+      <injectableNodes>100</injectableNodes>
+    </activeScanConfig>
+
+    <excludedRules>
+      <rule>10049</rule>
+      <rule>90001</rule>
+    </excludedRules>
+
+    <scanPolicies>
+      <policy>API Scan Policy</policy>
+    </scanPolicies>
+  </scanner>
+
+  <api>
+    <enabled>true</enabled>
+    <key>${ZAP_API_KEY}</key>
+    <scan>
+      <openapi>deploy/ai/openapi_tool_calling.json</openapi>
+      <graphql>https://api.kyc-vault.com/graphql</graphql>
+    </scan>
+  </api>
+
+  <spider>
+    <maxChildren>10</maxChildren>
+    <parseComments>true</parseComments>
+    <parseGit>false</parseGit>
+    <parseRobotsTxt>true</parseRobotsTxt>
+    <parseSitemapXml>true</parseSitemapXml>
+    <postForm>true</postForm>
+    <threadCount>2</threadCount>
+  </spider>
+
+  <alertFilters>
+    <filter>
+      <ruleId>10038</ruleId>
+      <newRisk>Info</newRisk>
+      <url>https://api.kyc-vault.com/v1/health</url>
+    </filter>
+  </alertFilters>
+
+  <reports>
+    <report>
+      <name>kyc-vault-zap-report</name>
+      <format>html</format>
+      <template>traditional</template>
+      <sections>
+        <section>alerts</section>
+        <section>alertsSummary</section>
+        <section>counts</section>
+        <section>passingScanRules</section>
+        <section>params</section>
+      </sections>
+    </report>
+    <report>
+      <name>kyc-vault-zap-report-json</name>
+      <format>json</format>
+      <template>traditional-json</template>
+    </report>
+  </reports>
+
+  <hooks>
+    <beforeScan>
+      <script>scripts/zap/env_setup.js</script>
+    </beforeScan>
+    <afterScan>
+      <script>scripts/zap/post_process.js</script>
+    </afterScan>
+  </hooks>
+
+  <automation>
+    <onFinish>generateReports</onFinish>
+    <failOnError>false</failOnError>
+    <failOnHighAlert>true</failOnHighAlert>
+    <failOnMediumAlert>false</failOnMediumAlert>
+  </automation>
+</config>

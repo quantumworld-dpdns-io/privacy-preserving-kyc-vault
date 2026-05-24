@@ -1,0 +1,344 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-deny-all
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-allow-dns
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-allow-api-ingress
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-api-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8443
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-orchestrator
+      ports:
+        - port: 9000
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-credential-service
+      ports:
+        - port: 9001
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-webhook-relay
+      ports:
+        - port: 9005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-billing-service
+      ports:
+        - port: 9010
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-allow-orchestrator-ingress
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-orchestrator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-api-gateway
+      ports:
+        - port: 9000
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-webhook-relay
+      ports:
+        - port: 9000
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-credential-service
+      ports:
+        - port: 9001
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-ai-inference
+      ports:
+        - port: 9002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-zkp-engine
+      ports:
+        - port: 9003
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-did-resolver
+      ports:
+        - port: 9004
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-compliance-service
+      ports:
+        - port: 9006
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kyc-vault
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-vault-db
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kyc-vault
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-vault-redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-vault-kafka
+      ports:
+        - port: 9092
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-allow-credential-ingress
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-credential-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-api-gateway
+      ports:
+        - port: 9001
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-orchestrator
+      ports:
+        - port: 9001
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-vault-redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-ai-inference
+      ports:
+        - port: 9002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-vault-db
+      ports:
+        - port: 5432
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-allow-did-resolver
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-did-resolver
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-orchestrator
+      ports:
+        - port: 9004
+          protocol: TCP
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-allow-redis
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-vault-redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-orchestrator
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-credential-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-ai-inference
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-zkp-engine
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-compliance-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-billing-service
+      ports:
+        - port: 6379
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyc-allow-db
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-vault-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-orchestrator
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-credential-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kyc-compliance-service
+      ports:
+        - port: 5432
+          protocol: TCP

@@ -1,0 +1,139 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-api-gateway-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-orchestrator-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-orchestrator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-credential-service-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-credential-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-did-resolver-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-did-resolver
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-zkp-engine-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-zkp-engine
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-ai-inference-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-ai-inference
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-compliance-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-compliance-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-billing-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-billing-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-db-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-vault-db
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-vault-redis-pdb
+  namespace: kyc-vault
+  labels:
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/component: pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-vault-redis

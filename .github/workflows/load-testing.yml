@@ -1,0 +1,150 @@
+name: Load Testing
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"  # Weekly on Monday 4 AM
+  push:
+    branches: [main]
+    paths:
+      - "packages/api/**"
+      - "services/**"
+      - "tests/load/**"
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "Comma-separated scenarios to run"
+        required: false
+        default: "kyc-verification,ai-inference,api-throughput"
+        type: string
+      duration:
+        description: "Test duration in seconds"
+        required: false
+        default: "300"
+        type: string
+      vus:
+        description: "Virtual users"
+        required: false
+        default: "500"
+        type: string
+
+env:
+  K6_CLOUD_TOKEN: ${{ secrets.K6_CLOUD_TOKEN }}
+  K6_PROMETHEUS_REMOTE_URL: ${{ secrets.K6_PROMETHEUS_REMOTE_URL }}
+  API_BASE_URL: ${{ vars.LOAD_TEST_API_URL || 'https://api.kyc-vault.com/v1' }}
+
+jobs:
+  k6-load-tests:
+    name: k6 Load Test
+    runs-on: ubuntu-latest-16-cores
+    strategy:
+      matrix:
+        scenario: ${{ fromJson(format('["{0}"]', github.event.inputs.scenarios || 'kyc-verification,ai-inference,api-throughput')) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k 0xFE234967C90D73C4
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6 -y
+
+      - name: Run load test scenario
+        run: |
+          SCENARIO="${{ matrix.scenario }}"
+          DURATION="${{ github.event.inputs.duration || '300' }}"
+          VUS="${{ github.event.inputs.vus || '500' }}"
+
+          k6 run \
+            --vus "$VUS" \
+            --duration "${DURATION}s" \
+            --out json="reports/k6-$SCENARIO.json" \
+            --out csv="reports/k6-$SCENARIO.csv" \
+            --summary-export="reports/k6-$SCENARIO-summary.json" \
+            -e API_BASE_URL="$API_BASE_URL" \
+            -e SCENARIO="$SCENARIO" \
+            tests/load/$SCENARIO.js
+        continue-on-error: true
+
+      - name: Upload raw results
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ matrix.scenario }}
+          path: reports/
+          retention-days: 30
+
+  validate-slos:
+    name: Validate SLOs
+    needs: k6-load-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Check SLO thresholds
+        run: |
+          for summary in reports/k6-*-summary.json; do
+            echo "Checking SLOs from $summary"
+            P95=$(jq -r '.metrics.http_req_duration["p(95)"] // 0' "$summary")
+            ERROR_RATE=$(jq -r '.metrics.http_req_failed.rate // 0' "$summary")
+
+            echo "p95: ${P95}ms"
+            echo "error_rate: ${ERROR_RATE}"
+
+            # SLO: p95 < 2000ms
+            if (( $(echo "$P95 > 2000" | bc -l) )); then
+              echo "❌ SLO violation: p95 latency ${P95}ms > 2000ms"
+              exit 1
+            fi
+
+            # SLO: error rate < 1%
+            if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+              echo "❌ SLO violation: error rate ${ERROR_RATE} > 1%"
+              exit 1
+            fi
+
+            echo "✅ SLOs passed for $(basename $summary)"
+          done
+
+  performance-report:
+    name: Performance Report
+    needs: validate-slos
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Generate performance report
+        run: |
+          echo "# Load Test Performance Report" > perf-report.md
+          echo "Generated: $(date -u)" >> perf-report.md
+          echo "" >> perf-report.md
+
+          for summary in reports/k6-*-summary.json; do
+            SCENARIO=$(basename "$summary" | sed 's/-summary.json//')
+            echo "## $SCENARIO" >> perf-report.md
+            echo '| Metric | Value |' >> perf-report.md
+            echo '|--------|-------|' >> perf-report.md
+            echo "| p95 Latency | $(jq -r '.metrics.http_req_duration["p(95)"] // "N/A"' "$summary") ms |" >> perf-report.md
+            echo "| p99 Latency | $(jq -r '.metrics.http_req_duration["p(99)"] // "N/A"' "$summary") ms |" >> perf-report.md
+            echo "| Avg Latency | $(jq -r '.metrics.http_req_duration["avg"] // "N/A"' "$summary") ms |" >> perf-report.md
+            echo "| Requests/sec | $(jq -r '.metrics.http_reqs["rate"] // "N/A"' "$summary") |" >> perf-report.md
+            echo "| Error Rate | $(jq -r '.metrics.http_req_failed["rate"] // "N/A"' "$summary")% |" >> perf-report.md
+            echo "| Total Requests | $(jq -r '.metrics.http_reqs["count"] // "N/A"' "$summary") |" >> perf-report.md
+            echo "" >> perf-report.md
+          done
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: perf-report.md
+          retention-days: 90
+
+      - name: Deploy report to S3
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws s3 cp perf-report.md s3://kyc-vault-reports/load-testing/$(date +%Y-%m-%d)-report.md

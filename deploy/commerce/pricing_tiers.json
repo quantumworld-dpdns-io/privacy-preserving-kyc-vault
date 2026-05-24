@@ -1,0 +1,83 @@
+{
+  "currency": "USD",
+  "tiers": {
+    "basic_kyc": {
+      "name": "Basic KYC Verification",
+      "description": "ID document verification with basic validation",
+      "unitPrice": "0.50",
+      "volumeDiscounts": [
+        { "minQuantity": 1000, "unitPrice": "0.45" },
+        { "minQuantity": 10000, "unitPrice": "0.40" },
+        { "minQuantity": 100000, "unitPrice": "0.35" },
+        { "minQuantity": 1000000, "unitPrice": "0.25" }
+      ],
+      "minimum": 1
+    },
+    "enhanced_kyc": {
+      "name": "Enhanced KYC Verification",
+      "description": "ID document + biometric verification + liveness detection",
+      "unitPrice": "1.50",
+      "volumeDiscounts": [
+        { "minQuantity": 1000, "unitPrice": "1.35" },
+        { "minQuantity": 10000, "unitPrice": "1.20" },
+        { "minQuantity": 100000, "unitPrice": "1.00" },
+        { "minQuantity": 1000000, "unitPrice": "0.80" }
+      ],
+      "minimum": 1
+    },
+    "enterprise_kyc": {
+      "name": "Enterprise KYC Verification",
+      "description": "Full enhanced KYC + PEP/sanctions screening + AML checks + adverse media",
+      "unitPrice": "3.00",
+      "volumeDiscounts": [
+        { "minQuantity": 1000, "unitPrice": "2.70" },
+        { "minQuantity": 10000, "unitPrice": "2.40" },
+        { "minQuantity": 100000, "unitPrice": "2.00" },
+        { "minQuantity": 1000000, "unitPrice": "1.50" }
+      ],
+      "minimum": 1
+    },
+    "ai_screening": {
+      "name": "AI-Powered Screening",
+      "description": "AI-assisted document analysis and fraud detection add-on",
+      "unitPrice": "0.05",
+      "volumeDiscounts": [
+        { "minQuantity": 10000, "unitPrice": "0.04" },
+        { "minQuantity": 100000, "unitPrice": "0.03" },
+        { "minQuantity": 1000000, "unitPrice": "0.02" }
+      ],
+      "minimum": 100
+    },
+    "zkp_proof": {
+      "name": "Zero-Knowledge Proof Generation",
+      "description": "Generate ZKP for privacy-preserving credential verification",
+      "unitPrice": "0.10",
+      "volumeDiscounts": [
+        { "minQuantity": 10000, "unitPrice": "0.08" },
+        { "minQuantity": 100000, "unitPrice": "0.06" },
+        { "minQuantity": 1000000, "unitPrice": "0.04" }
+      ],
+      "minimum": 100
+    },
+    "api_access": {
+      "name": "API Access Package",
+      "description": "Full API access with dedicated endpoints and higher rate limits",
+      "unitPrice": "499.00",
+      "volumeDiscounts": [],
+      "minimum": 1,
+      "billingPeriod": "monthly"
+    },
+    "enterprise_seat": {
+      "name": "Enterprise Seat",
+      "description": "Per-seat licensing for enterprise dashboard access",
+      "unitPrice": "99.00",
+      "volumeDiscounts": [
+        { "minQuantity": 10, "unitPrice": "89.00" },
+        { "minQuantity": 50, "unitPrice": "79.00" },
+        { "minQuantity": 100, "unitPrice": "69.00" }
+      ],
+      "minimum": 1,
+      "billingPeriod": "monthly"
+    }
+  }
+}

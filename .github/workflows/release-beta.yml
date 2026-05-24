@@ -1,0 +1,101 @@
+name: Release Beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Beta version (e.g. 2.3.0-beta.1)"
+        required: true
+        type: string
+      from_branch:
+        description: "Branch to release from"
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  beta-pr:
+    name: Create Beta Release PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.from_branch }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate version
+        run: |
+          if [[ ! "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            echo "Invalid beta version. Use semver with -beta.N suffix (e.g. 2.3.0-beta.1)"
+            exit 1
+          fi
+
+      - name: Bump version
+        run: |
+          npm version ${{ github.event.inputs.version }} --no-git-tag-version
+          echo "${{ github.event.inputs.version }}" > VERSION
+
+      - name: Create beta branch and PR
+        run: |
+          BRANCH="beta/v${{ github.event.inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add package.json VERSION
+
+          npm ci && npm run build && npm test
+          git commit -m "chore(release): beta v${{ github.event.inputs.version }}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Beta release v${{ github.event.inputs.version }}" \
+            --body "## Beta Release v${{ github.event.inputs.version }}\n\nThis is a beta release for testing before stable.\n\n### Changes\n- $(git log origin/main..HEAD --oneline | sed 's/^/- /')\n\n### Testing needed\n- [ ] Feature validation\n- [ ] Integration tests\n- [ ] Performance check" \
+            --label beta,release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-beta:
+    name: Publish Beta Package
+    runs-on: ubuntu-latest
+    needs: beta-pr
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: beta/v${{ github.event.inputs.version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org/
+
+      - name: Build and publish
+        run: |
+          npm ci
+          npm run build
+          npm publish --tag beta
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag release
+        run: |
+          git tag "v${{ github.event.inputs.version }}"
+          git push origin "v${{ github.event.inputs.version }}"
+
+      - name: Create GitHub Release (pre-release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }} (Beta)
+          prerelease: true
+          generate_release_notes: true

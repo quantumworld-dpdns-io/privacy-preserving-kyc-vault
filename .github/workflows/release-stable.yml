@@ -1,0 +1,94 @@
+name: Release Stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Stable version (e.g. 2.1.0)"
+        required: true
+        type: string
+      rc_tag:
+        description: "RC tag to promote (e.g. v2.1.0-rc.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify RC tag exists
+        run: |
+          git fetch --tags
+          if ! git rev-parse "${{ github.event.inputs.rc_tag }}" >/dev/null 2>&1; then
+            echo "RC tag ${{ github.event.inputs.rc_tag }} does not exist"
+            exit 1
+          fi
+
+      - name: Validate semver
+        run: |
+          if [[ ! "${{ github.event.inputs.release_version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version. Must be semver (e.g. 2.1.0)"
+            exit 1
+          fi
+
+  promote:
+    name: Promote RC to Stable
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Checkout RC tag
+        run: |
+          git checkout ${{ github.event.inputs.rc_tag }}
+
+      - name: Update to stable version
+        run: |
+          npm version ${{ github.event.inputs.release_version }} --no-git-tag-version
+          echo "${{ github.event.inputs.release_version }}" > VERSION
+
+      - name: Create stable tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json VERSION
+          git commit -m "chore(release): stable v${{ github.event.inputs.release_version }}"
+          git tag "v${{ github.event.inputs.release_version }}"
+          git push origin "v${{ github.event.inputs.release_version }}"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.release_version }}
+          name: v${{ github.event.inputs.release_version }}
+          prerelease: false
+          generate_release_notes: true
+          make_latest: true
+
+  deploy:
+    name: Deploy Stable
+    runs-on: ubuntu-latest
+    needs: promote
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      tag: v${{ github.event.inputs.release_version }}
+      confirm_approval: true
+    secrets: inherit

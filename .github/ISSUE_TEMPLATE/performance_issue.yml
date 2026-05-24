@@ -1,0 +1,107 @@
+name: Performance Issue
+description: Report a performance degradation or bottleneck
+title: "[Performance] "
+labels: [performance, triage]
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to report performance issues such as slow responses, high resource usage, or scalability concerns.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Performance Area
+      description: Which aspect is affected?
+      options:
+        - API response time
+        - database queries
+        - memory usage
+        - CPU usage
+        - network latency
+        - build/CI time
+        - bundle size
+        - startup time
+        - scalability / throughput
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - critical (p95 > 5s, service degradation)
+        - high (p95 > 2s, noticeable impact)
+        - medium (p95 > 1s, minor impact)
+        - low (cosmetic, non-user-facing)
+    validations:
+      required: true
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: Endpoint / Component
+      description: Which endpoint or component is affected?
+      placeholder: "/api/v1/users"
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed Performance
+      description: What performance metrics are you seeing?
+      placeholder: |
+        p50: 500ms
+        p95: 3000ms
+        p99: 5000ms
+        error rate: 2%
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Performance
+      description: What performance should we expect?
+      placeholder: |
+        p50: <200ms
+        p95: <1000ms
+        p99: <2000ms
+        error rate: <0.1%
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Load / Context
+      description: Under what load conditions was this observed?
+      placeholder: 100 concurrent users, peak traffic, etc.
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to Reproduce
+      description: Steps to reproduce the performance issue
+      placeholder: |
+        1. Run load test with X VUs
+        2. Observe response times for endpoint Y
+        3. ...
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling Data
+      description: Attach profiler output, flamegraphs, or heap dumps if available.
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      options:
+        - label: I have checked existing performance reports for duplicates
+          required: true
+        - label: I have included benchmark data
+        - label: This is reproducible

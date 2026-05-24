@@ -1,0 +1,167 @@
+name: Fuzz Testing
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Weekly on Monday 6 AM
+  push:
+    branches: [main, develop]
+    paths:
+      - "crates/**/*.rs"
+      - "packages/**/*.ts"
+      - "tests/fuzz/**"
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: "Fuzz duration in seconds"
+        required: true
+        default: "300"
+        type: string
+      targets:
+        description: "Space-separated fuzz targets (all if empty)"
+        required: false
+        default: ""
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-C link-arg=-s"
+  RUST_BACKTRACE: 1
+
+jobs:
+  cargo-fuzz:
+    name: Cargo Fuzz (Rust)
+    runs-on: ubuntu-latest-16-cores
+    strategy:
+      matrix:
+        target:
+          - did_parse
+          - credential_deserialize
+          - zkp_proof_parse
+          - presentation_parse
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rust-src
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Cache cargo-fuzz artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-fuzz
+            target/fuzz
+          key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fuzz-
+
+      - name: Run cargo-fuzz
+        run: |
+          DURATION="${{ github.event.inputs.duration || '300' }}"
+          cargo fuzz run ${{ matrix.target }} -- \
+            -max_total_time=$DURATION \
+            -workers=4 \
+            -artifact_prefix=artifacts/${{ matrix.target }}/
+        continue-on-error: true
+
+      - name: Upload crash artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: artifacts/${{ matrix.target }}/
+          retention-days: 30
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-coverage-${{ matrix.target }}
+          path: coverage/
+          retention-days: 7
+
+  jsfuzz:
+    name: Jazzer.js Fuzz (TypeScript)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - did-parser
+          - credential-validator
+          - schema-validator
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages
+        run: npx nx run-many --target=build --projects=core,did,crypto
+
+      - name: Install Jazzer.js
+        run: npm install -g @jazzer.js/core
+
+      - name: Run Jazzer.js fuzzing
+        run: |
+          DURATION="${{ github.event.inputs.duration || '300' }}"
+          npx jazzer tests/fuzz/${{ matrix.target }}.fuzz.ts \
+            --duration $DURATION \
+            --sync
+        continue-on-error: true
+
+      - name: Upload Jazzer.js findings
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: jsfuzz-findings-${{ matrix.target }}
+          path: findings/
+          retention-days: 30
+
+  report:
+    name: Fuzz Report
+    runs-on: ubuntu-latest
+    needs: [cargo-fuzz, jsfuzz]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate fuzz report
+        run: |
+          echo "# Fuzz Testing Report" > fuzz-report.md
+          echo "Generated: $(date -u)" >> fuzz-report.md
+          echo "" >> fuzz-report.md
+          echo "## Rust Fuzz Targets" >> fuzz-report.md
+          for target in did_parse credential_deserialize zkp_proof_parse presentation_parse; do
+            if [ -d "artifacts/$target/" ] && [ "$(ls -A artifacts/$target/)" ]; then
+              echo "- ⚠️ $target: crashes found" >> fuzz-report.md
+            else
+              echo "- ✅ $target: clean" >> fuzz-report.md
+            fi
+          done
+          echo "" >> fuzz-report.md
+          echo "## TypeScript Fuzz Targets" >> fuzz-report.md
+          for target in did-parser credential-validator schema-validator; do
+            if [ -d "findings/$target/" ] && [ "$(ls -A findings/$target/)" ]; then
+              echo "- ⚠️ $target: findings found" >> fuzz-report.md
+            else
+              echo "- ✅ $target: clean" >> fuzz-report.md
+            fi
+          done
+
+      - name: Upload fuzz report
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-report
+          path: fuzz-report.md
+          retention-days: 90

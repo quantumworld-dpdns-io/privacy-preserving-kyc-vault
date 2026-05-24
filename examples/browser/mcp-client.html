@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KYC Vault - MCP Credential Verification Client</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; display: flex; justify-content: center; padding: 2rem; }
+    .container { max-width: 720px; width: 100%; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #38bdf8; }
+    .subtitle { color: #94a3b8; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+    .card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: #f1f5f9; }
+    label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    input, textarea, select { width: 100%; padding: 0.6rem; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 0.9rem; margin-bottom: 0.75rem; }
+    textarea { font-family: 'SF Mono', Monaco, monospace; resize: vertical; min-height: 80px; }
+    button { background: #2563eb; color: #fff; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: background 0.2s; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .output { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace; font-size: 0.8rem; max-height: 300px; overflow-y: auto; }
+    .success { border-left: 3px solid #22c55e; }
+    .error { border-left: 3px solid #ef4444; }
+    .pending { border-left: 3px solid #facc15; }
+    .flex { display: flex; gap: 0.5rem; }
+    .flex > * { flex: 1; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: #334155; color: #94a3b8; margin-left: 0.5rem; }
+    .badge.online { background: #166534; color: #bbf7d0; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .status-dot.green { background: #22c55e; }
+    .status-dot.yellow { background: #facc15; }
+    .status-dot.red { background: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 KYC Vault MCP Client</h1>
+    <p class="subtitle">Connects to the Model Context Protocol server for credential verification and DID resolution.</p>
+
+    <!-- Connection -->
+    <div class="card">
+      <h2>MCP Server Connection</h2>
+      <label for="mcpUrl">Server URL (SSE endpoint)</label>
+      <div class="flex">
+        <input id="mcpUrl" type="url" value="http://localhost:3001/sse" placeholder="http://localhost:3001/sse" />
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button onclick="disconnect()" style="background:#475569;">Disconnect</button>
+      </div>
+      <div id="connectionStatus" class="output" style="max-height:60px;">
+        <span class="status-dot yellow"></span> Not connected
+      </div>
+    </div>
+
+    <!-- DID Resolution -->
+    <div class="card">
+      <h2>Resolve DID</h2>
+      <label for="didInput">DID String</label>
+      <input id="didInput" type="text" value="did:kyc:issuer:vault-001" placeholder="did:kyc:issuer:..." />
+      <button onclick="resolveDID()" id="resolveBtn">Resolve</button>
+      <div id="didOutput" class="output">Enter a DID and press resolve.</div>
+    </div>
+
+    <!-- Credential Verification -->
+    <div class="card">
+      <h2>Verify Credential</h2>
+      <label for="credInput">Verifiable Credential (JSON-LD)</label>
+      <textarea id="credInput">{
+  "@context": ["https://www.w3.org/2018/credentials/v1"],
+  "id": "urn:uuid:550e8400-e29b-41d4-a716-446655440000",
+  "type": ["VerifiableCredential", "KYCIdentityCredential"],
+  "issuer": "did:kyc:issuer:vault-001",
+  "issuanceDate": "2026-01-15T00:00:00Z",
+  "credentialSubject": {
+    "id": "did:kyc:subject:alice",
+    "age": 25,
+    "nationality": "US"
+  }
+}</textarea>
+      <button onclick="verifyCredential()" id="verifyBtn">Verify Credential</button>
+      <div id="verifyOutput" class="output">Paste a credential and press verify.</div>
+    </div>
+
+    <!-- ZKP Proof Verification -->
+    <div class="card">
+      <h2>Verify ZKP Proof</h2>
+      <label for="proofInput">Proof Payload (JSON)</label>
+      <textarea id="proofInput">{
+  "proofId": "noir-proof-001",
+  "circuitId": "age_verification",
+  "proof": "<base64 encoded proof bytes>",
+  "publicOutputs": ["25", "21"]
+}</textarea>
+      <button onclick="verifyProof()" id="proofBtn">Verify Proof</button>
+      <div id="proofOutput" class="output">Paste a ZKP proof and press verify.</div>
+    </div>
+  </div>
+
+  <script>
+    // Minimal MCP SSE client
+    let eventSource = null;
+    let connected = false;
+    let requestId = 1;
+    let pending = {};
+
+    function setStatus(msg, type = 'pending') {
+      const el = document.getElementById('connectionStatus');
+      const dot = { success: 'green', error: 'red', pending: 'yellow' }[type] || 'yellow';
+      el.innerHTML = `<span class="status-dot ${dot}"></span> ${msg}`;
+    }
+
+    function connect() {
+      const url = document.getElementById('mcpUrl').value.trim();
+      if (!url) return;
+
+      if (eventSource) eventSource.close();
+      setStatus('Connecting...', 'pending');
+
+      eventSource = new EventSource(url);
+
+      eventSource.onopen = () => {
+        connected = true;
+        setStatus(`Connected to ${url}`, 'success');
+        document.getElementById('connectBtn').disabled = true;
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          const { id, result, error } = msg;
+          if (id && pending[id]) {
+            if (error) pending[id].reject(new Error(error.message || 'RPC error'));
+            else pending[id].resolve(result);
+            delete pending[id];
+          }
+        } catch (e) { /* ignore malformed */ }
+      };
+
+      eventSource.onerror = () => {
+        connected = false;
+        setStatus('Connection lost or failed.', 'error');
+        document.getElementById('connectBtn').disabled = false;
+      };
+    }
+
+    function disconnect() {
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      connected = false;
+      setStatus('Disconnected.', 'pending');
+      document.getElementById('connectBtn').disabled = false;
+    }
+
+    async function mcpRequest(method, params = {}) {
+      if (!connected) throw new Error('Not connected to MCP server.');
+      return new Promise((resolve, reject) => {
+        const id = requestId++;
+        pending[id] = { resolve, reject };
+        const body = JSON.stringify({ jsonrpc: '2.0', id, method, params });
+        fetch(document.getElementById('mcpUrl').value.trim().replace('/sse', '/message'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        }).catch(reject);
+      });
+    }
+
+    function setOutput(id, data, type = 'success') {
+      const el = document.getElementById(id);
+      el.className = `output ${type}`;
+      el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    }
+
+    async function resolveDID() {
+      const did = document.getElementById('didInput').value.trim();
+      if (!did) return;
+      setOutput('didOutput', 'Resolving...', 'pending');
+      try {
+        const result = await mcpRequest('did/resolve', { did });
+        setOutput('didOutput', result, 'success');
+      } catch (e) {
+        setOutput('didOutput', `Error: ${e.message}`, 'error');
+      }
+    }
+
+    async function verifyCredential() {
+      try {
+        const credential = JSON.parse(document.getElementById('credInput').value);
+        setOutput('verifyOutput', 'Verifying...', 'pending');
+        const result = await mcpRequest('credential/verify', { credential });
+        setOutput('verifyOutput', result, 'success');
+      } catch (e) {
+        setOutput('verifyOutput', `Error: ${e.message}`, 'error');
+      }
+    }
+
+    async function verifyProof() {
+      try {
+        const proof = JSON.parse(document.getElementById('proofInput').value);
+        setOutput('proofOutput', 'Verifying proof...', 'pending');
+        const result = await mcpRequest('zkp/verify', { proof });
+        setOutput('proofOutput', result, 'success');
+      } catch (e) {
+        setOutput('proofOutput', `Error: ${e.message}`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

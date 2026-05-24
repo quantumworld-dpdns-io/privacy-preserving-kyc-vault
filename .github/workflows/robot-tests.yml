@@ -1,0 +1,35 @@
+name: Robot Framework Tests
+on:
+  workflow_run:
+    workflows: [Docker Build & Push]
+    types: [completed]
+
+jobs:
+  robot-tests:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: kyc_vault_test
+          POSTGRES_USER: kyc
+          POSTGRES_PASSWORD: kyc
+        ports: [5432:5432]
+        options: --health-cmd pg_isready -U kyc --health-interval 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install robotframework robotframework-requests
+      - name: Run OWASP Top 10 Security Tests
+        run: robot --outputdir results/owasp tests/robot/owasp_top10.robot
+      - name: Run KYC Workflow Tests
+        run: robot --outputdir results/kyc tests/robot/kyc_workflow.robot
+      - name: Run ZKP Verification Tests
+        run: robot --outputdir results/zkp tests/robot/zkp_verification.robot
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: robot-results
+          path: results/

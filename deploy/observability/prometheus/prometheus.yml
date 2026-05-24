@@ -1,0 +1,325 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: "privacy-vault"
+    region: "us-east-1"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+      scheme: http
+      timeout: 10s
+
+rule_files:
+  - "rules/did_alerts.yml"
+  - "rules/credential_alerts.yml"
+  - "rules/kyc_alerts.yml"
+  - "rules/zkp_alerts.yml"
+  - "rules/ai_alerts.yml"
+  - "rules/resource_alerts.yml"
+  - "rules/business_alerts.yml"
+  - "rules/security_alerts.yml"
+  - "rules/pqc_alerts.yml"
+  - "rules/wasm_alerts.yml"
+  - "rules/tee_alerts.yml"
+  - "rules/fl_alerts.yml"
+  - "rules/quantum_alerts.yml"
+
+scrape_configs:
+  - job_name: "kubernetes-pods"
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: (.+):(?:\d+);(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+        action: replace
+        target_label: __scheme__
+        regex: (https?)
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+
+  - job_name: "kubernetes-nodes"
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/$1/proxy/metrics
+
+  - job_name: "kubernetes-cadvisor"
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+
+  - job_name: "kubernetes-apiserver"
+    kubernetes_sd_configs:
+      - role: endpoints
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+
+  - job_name: "kubernetes-services"
+    kubernetes_sd_configs:
+      - role: service
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+        action: replace
+        regex: (.+):(?:\d+);(\d+)
+        replacement: $1:$2
+        target_label: __address__
+
+  - job_name: "ecs"
+    ec2_sd_configs:
+      - region: us-east-1
+        port: 9090
+        filters:
+          - name: tag:Environment
+            values: ["production", "staging"]
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Name]
+        target_label: instance
+      - source_labels: [__meta_ec2_tag_Service]
+        target_label: service
+      - source_labels: [__meta_ec2_vpc_id]
+        target_label: vpc
+
+  - job_name: "consul"
+    consul_sd_configs:
+      - server: consul:8500
+        datacenter: dc1
+        services:
+          - "vault"
+          - "did-service"
+          - "credential-service"
+          - "kyc-pipeline"
+          - "zkp-service"
+          - "ai-inference"
+          - "tee-attestation"
+          - "federated-learning"
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+      - source_labels: [__meta_consul_node]
+        target_label: node
+      - source_labels: [__meta_consul_dc]
+        target_label: datacenter
+
+  - job_name: "nomad"
+    nomad_sd_configs:
+      - server: nomad:4646
+        namespace: "default"
+    relabel_configs:
+      - source_labels: [__meta_nomad_job]
+        target_label: job
+      - source_labels: [__meta_nomad_task_group]
+        target_label: task_group
+
+  - job_name: "vault"
+    metrics_path: "/v1/sys/metrics"
+    params:
+      format: ["prometheus"]
+    scheme: https
+    tls_config:
+      ca_file: /etc/prometheus/tls/ca.crt
+    static_configs:
+      - targets:
+          - vault-active.vault.svc:8200
+          - vault-standby.vault.svc:8200
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  - job_name: "tempo"
+    static_configs:
+      - targets:
+          - tempo:3200
+
+  - job_name: "loki"
+    static_configs:
+      - targets:
+          - loki:3100
+
+  - job_name: "grafana"
+    static_configs:
+      - targets:
+          - grafana:3000
+
+  - job_name: "alertmanager"
+    static_configs:
+      - targets:
+          - alertmanager:9093
+
+  - job_name: "node-exporter"
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: node-exporter
+      - source_labels: [__address__]
+        action: replace
+        target_label: __address__
+        source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        replacement: $1:9100
+
+  - job_name: "kube-state-metrics"
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        action: keep
+        regex: kube-state-metrics
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        action: keep
+        regex: "8080|8081"
+
+  - job_name: "postgres-exporter"
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: postgres-exporter
+
+  - job_name: "redis-exporter"
+    static_configs:
+      - targets:
+          - redis-exporter:9121
+
+  - job_name: "otel-collector"
+    static_configs:
+      - targets:
+          - otel-collector:8888
+          - otel-collector:8889
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: ".*:8888"
+        target_label: endpoint
+        replacement: "metrics"
+      - source_labels: [__address__]
+        regex: ".*:8889"
+        target_label: endpoint
+        replacement: "internal-metrics"
+
+  - job_name: "blackbox-http"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://api.privacy-vault.com/health
+          - https://did.privacy-vault.com/health
+          - https://credential.privacy-vault.com/health
+          - https://kyc.privacy-vault.com/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: "prometheus-self"
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  - job_name: "terraform-metrics"
+    scrape_interval: 60s
+    static_configs:
+      - targets:
+          - terraform-exporter:9090
+
+  - job_name: "cloudwatch-exporter"
+    scrape_interval: 300s
+    static_configs:
+      - targets:
+          - cloudwatch-exporter:9106
+
+  - job_name: "github-exporter"
+    scrape_interval: 300s
+    static_configs:
+      - targets:
+          - github-exporter:9090
+
+  - job_name: "chaos-mesh"
+    static_configs:
+      - targets:
+          - chaos-dashboard:2333
+
+  - job_name: "k6-exporter"
+    static_configs:
+      - targets:
+          - k6-exporter:6565
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: test_run
+
+remote_write:
+  - url: "https://thanos-receiver.obs.svc:19291/api/v1/receive"
+    name: "thanos"
+    tls_config:
+      ca_file: /etc/prometheus/tls/ca.crt
+      cert_file: /etc/prometheus/tls/cert.crt
+      key_file: /etc/prometheus/tls/key.key
+    remote_timeout: 30s
+    queue_config:
+      capacity: 2500
+      max_samples_per_send: 500
+      min_shard_size: 3
+      max_shards: 20
+
+storage:
+  tsdb:
+    retention:
+      time: 30d
+      size: 50GB
+    wal_compression: true
+    out_of_order_time_window: 30s

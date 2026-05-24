@@ -1,0 +1,7 @@
+[package]
+name = "kyc-vault-risc0-guest"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+risc0-zkvm = { version = "2.0", default-features = false, features = ["std"] }
+serde = "1"

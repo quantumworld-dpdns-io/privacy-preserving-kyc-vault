@@ -1,0 +1,16 @@
+apiVersion: v2
+name: kyc-vault
+description: Privacy-Preserving KYC Vault Helm chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - kyc
+  - did
+  - zero-knowledge
+  - privacy
+sources:
+  - https://github.com/quantumworld-dpdns-io/privacy-preserving-kyc-vault
+maintainers:
+  - name: quantumworld-dpdns-io
+    email: admin@example.com

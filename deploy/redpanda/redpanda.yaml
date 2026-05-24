@@ -1,0 +1,44 @@
+seed_servers: []
+data_directory: /var/lib/redpanda/data
+
+node_id: 0
+redpanda:
+  enable_centralized_config: false
+  data_directory: /var/lib/redpanda/data
+  node_id: 0
+  seed_servers: []
+  rpc_server:
+    address: 0.0.0.0
+    port: 33145
+  kafka_api:
+    - address: 0.0.0.0
+      port: 9092
+    - address: 0.0.0.0
+      port: 31092
+      authentication_method: sasl
+  admin:
+    - address: 0.0.0.0
+      port: 9644
+  advertised_kafka_api:
+    - address: redpanda
+      port: 9092
+  developer_mode: true
+  auto_create_topics_enabled: true
+  group_topic_partitions: 3
+  default_topic_partitions: 3
+  default_topic_replication_factor: 1
+  enable_transactions: true
+  enable_idempotence: true
+  log_segment_size: 536870912
+  log_retention_ms: 604800000
+  log_retention_bytes: 10737418240
+
+schema_registry:
+  enabled: true
+  address: 0.0.0.0
+  port: 8081
+
+pandaproxy:
+  enabled: true
+  address: 0.0.0.0
+  port: 8082

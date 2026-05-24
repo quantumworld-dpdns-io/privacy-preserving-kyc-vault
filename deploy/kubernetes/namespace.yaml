@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kyc-vault
+  labels:
+    name: kyc-vault
+    app.kubernetes.io/name: kyc-vault
+    app.kubernetes.io/part-of: privacy-preserving-kyc
+    app.kubernetes.io/managed-by: kubectl
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    openshift.io/sa.scc.allow-privileged: "false"
+    openshift.io/sa.scc.supplemental-groups: "1000-2000"
+    openshift.io/sa.scc.fsGroup: "1000"

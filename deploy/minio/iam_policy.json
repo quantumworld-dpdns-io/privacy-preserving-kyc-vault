@@ -1,0 +1,83 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:GetBucketVersioning",
+        "s3:GetBucketLifecycle",
+        "s3:GetBucketEncryption"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kyc-vault-raw",
+        "arn:aws:s3:::kyc-vault-iceberg",
+        "arn:aws:s3:::kyc-vault-audit",
+        "arn:aws:s3:::kyc-vault-artifacts",
+        "arn:aws:s3:::kyc-vault-temp"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:GetObjectTagging",
+        "s3:GetObjectRetention",
+        "s3:GetObjectLegalHold"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kyc-vault-raw/*",
+        "arn:aws:s3:::kyc-vault-iceberg/*",
+        "arn:aws:s3:::kyc-vault-audit/*",
+        "arn:aws:s3:::kyc-vault-artifacts/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:PutObjectTagging",
+        "s3:PutObjectRetention",
+        "s3:PutObjectLegalHold",
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion",
+        "s3:RestoreObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kyc-vault-raw/*",
+        "arn:aws:s3:::kyc-vault-iceberg/*",
+        "arn:aws:s3:::kyc-vault-temp/*"
+      ]
+    },
+    {
+      "Effect": "Deny",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kyc-vault-audit/*"
+      ]
+    },
+    {
+      "Effect": "Deny",
+      "Action": [
+        "s3:PutBucketPolicy",
+        "s3:DeleteBucketPolicy",
+        "s3:PutBucketLifecycle",
+        "s3:PutBucketEncryption",
+        "s3:PutBucketVersioning",
+        "s3:DeleteBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::kyc-vault-raw",
+        "arn:aws:s3:::kyc-vault-iceberg",
+        "arn:aws:s3:::kyc-vault-audit",
+        "arn:aws:s3:::kyc-vault-artifacts",
+        "arn:aws:s3:::kyc-vault-temp"
+      ]
+    }
+  ]
+}

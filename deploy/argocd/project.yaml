@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1beta1
+kind: AppProject
+metadata:
+  name: kyc-vault
+  namespace: argocd
+spec:
+  description: Privacy-Preserving KYC Vault
+
+  sourceRepos:
+  - https://github.com/org/privacy-preserving-kyc-vault.git
+
+  destinations:
+  - namespace: kyc-vault
+    server: https://kubernetes.default.svc
+  - namespace: kyc-vault-*
+    server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+  - group: ""
+    kind: Namespace
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: cert-manager.io
+    kind: ClusterIssuer
+  - group: external-secrets.io
+    kind: ClusterSecretStore
+
+  clusterResourceBlacklist: []
+  namespaceResourceBlacklist:
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    namespace: kube-system
+
+  roles:
+  - name: admin
+    description: Full administrative access
+    policies:
+    - p, proj:kyc-vault:admin, applications, *, kyc-vault/*, allow
+    groups:
+    - kyc-vault-admins
+
+  - name: readonly
+    description: Read-only access
+    policies:
+    - p, proj:kyc-vault:readonly, applications, get, kyc-vault/*, allow
+    groups:
+    - kyc-vault-readers

@@ -1,0 +1,179 @@
+package kyc-vault:kyc;
+
+interface kyc-types {
+  /// Supported KYC tiers
+  enum kyc-tier {
+    tier-1,
+    tier-2,
+    tier-3,
+    custom,
+  }
+
+  /// KYC workflow states
+  enum kyc-state {
+    initiated,
+    documents-submitted,
+    under-review,
+    additional-info-requested,
+    approved,
+    rejected,
+    expired,
+    revoked,
+  }
+
+  /// Decision outcomes
+  enum review-decision {
+    approved,
+    rejected,
+    request-more-info,
+  }
+
+  /// Document verification status
+  enum document-status {
+    pending,
+    verified,
+    rejected,
+    expired,
+  }
+
+  /// A document submitted for KYC
+  record kyc-document {
+    id: string,
+    document-type: string,
+    file-hash: string,
+    status: document-status,
+    uploaded-at: string,
+    verified-at: option<string>,
+  }
+
+  /// A review action
+  record kyc-review {
+    reviewer-did: string,
+    decision: review-decision,
+    reason: option<string>,
+    reviewed-at: string,
+    evidence-hash: option<string>,
+  }
+
+  /// An event in the workflow history
+  record kyc-event {
+    event-type: string,
+    timestamp: string,
+    actor: string,
+    detail: string,
+  }
+
+  /// A KYC workflow instance
+  record kyc-workflow {
+    id: string,
+    subject-did: string,
+    state: kyc-state,
+    tier: string,
+    platform-id: string,
+    created-at: string,
+    updated-at: string,
+    expires-at: option<string>,
+    documents: list<kyc-document>,
+    reviews: list<kyc-review>,
+    history: list<kyc-event>,
+  }
+
+  /// Age range for age proof
+  record age-range {
+    min: u32,
+    max: u32,
+  }
+
+  /// Result of age verification
+  record age-proof-result {
+    verified: bool,
+    age-range: age-range,
+    timestamp: string,
+  }
+}
+
+interface kyc-workflow-management {
+  use kyc-types.{kyc-workflow, kyc-state, kyc-document, kyc-review, kyc-event};
+
+  /// Create a new KYC workflow
+  create-workflow: func(
+    subject-did: string,
+    tier: string,
+    platform-id: string
+  ) -> result<kyc-workflow, string>;
+
+  /// Transition a workflow to a new state
+  transition-workflow: func(
+    workflow-id: string,
+    new-state: kyc-state,
+    actor: string,
+    detail: string
+  ) -> result<kyc-workflow, string>;
+
+  /// Get current workflow state
+  get-workflow: func(workflow-id: string) -> result<kyc-workflow, string>;
+
+  /// Add a document to a workflow
+  add-document: func(
+    workflow-id: string,
+    document: kyc-document
+  ) -> result<kyc-workflow, string>;
+
+  /// Add a review to a workflow
+  add-review: func(
+    workflow-id: string,
+    review: kyc-review
+  ) -> result<kyc-workflow, string>;
+
+  /// Get workflow history
+  get-history: func(workflow-id: string) -> list<kyc-event>;
+}
+
+interface kyc-age-proof {
+  use kyc-types.{age-range, age-proof-result};
+
+  /// Prove that age falls within a range without revealing the exact age
+  prove-age-range: func(
+    age: u32,
+    range: age-range
+  ) -> result<age-proof-result, string>;
+
+  /// Verify an age range proof
+  verify-age-range: func(
+    proof: list<u8>,
+    range: age-range
+  ) -> result<age-proof-result, string>;
+
+  /// Commit to an age value for later verification
+  commit-age: func(age: u32) -> list<u8>;
+
+  /// Verify a committed age against a range
+  verify-committed-age: func(
+    commitment: list<u8>,
+    range: age-range
+  ) -> bool;
+}
+
+interface kyc-document-verification {
+  use kyc-types.{kyc-document, document-status};
+
+  /// Verify a KYC document
+  verify-document: func(document: kyc-document) -> result<document-status, string>;
+
+  /// Check if a document has been tampered with by comparing hashes
+  verify-document-hash: func(
+    document-id: string,
+    expected-hash: string
+  ) -> bool;
+
+  /// Extract attributes from a verified document
+  extract-attributes: func(document: kyc-document) -> list<tuple<string, string>>;
+}
+
+world kyc-world {
+  import kyc-workflow-management;
+  import kyc-age-proof;
+  import kyc-document-verification;
+  export kyc-workflow-management;
+  export kyc-age-proof;
+}

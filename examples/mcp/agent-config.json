@@ -1,0 +1,251 @@
+{
+  "$schema": "https://schema.kyc-vault.com/mcp-agent-config-v1.json",
+  "version": "1.0.0",
+  "name": "kyc-vault-agent",
+  "description": "MCP agent configuration for Claude/Cursor/Codex to interact with the KYC Vault",
+  "author": "KYC Vault Team",
+  "mcp_servers": [
+    {
+      "id": "kyc-vault-main",
+      "name": "KYC Vault MCP Server",
+      "description": "Primary MCP server for credential management, DID resolution, and KYC workflows",
+      "transport": {
+        "type": "sse",
+        "url": "https://mcp.kyc-vault.com/sse",
+        "message_endpoint": "https://mcp.kyc-vault.com/message",
+        "reconnect_delay_ms": 1000,
+        "max_reconnect_attempts": 5
+      },
+      "authentication": {
+        "type": "bearer",
+        "token_env_var": "KYC_VAULT_TOKEN"
+      },
+      "capabilities": [
+        "did/resolve",
+        "credential/issue",
+        "credential/verify",
+        "credential/revoke",
+        "credential/status",
+        "credential/list",
+        "kyc/start_workflow",
+        "kyc/workflow_status",
+        "kyc/list_workflows",
+        "zkp/generate_proof",
+        "zkp/verify_proof",
+        "zkp/list_circuits",
+        "ai/classify_document",
+        "ai/liveness_check",
+        "ai/fraud_detection"
+      ],
+      "tools": [
+        {
+          "name": "resolve_did",
+          "description": "Resolve a Decentralized Identifier (DID) to its DID Document",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "did": {
+                "type": "string",
+                "description": "The DID string to resolve (e.g., did:kyc:issuer:vault-001)",
+                "examples": ["did:kyc:issuer:vault-001", "did:key:z6Mkf", "did:web:example.com"]
+              }
+            },
+            "required": ["did"]
+          }
+        },
+        {
+          "name": "issue_credential",
+          "description": "Issue a verifiable credential to a subject",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "issuerDid": { "type": "string", "description": "DID of the credential issuer" },
+              "subjectId": { "type": "string", "description": "DID of the credential subject" },
+              "claims": {
+                "type": "object",
+                "description": "Claims to include in the credential",
+                "additionalProperties": true
+              },
+              "schemaId": { "type": "string", "description": "Optional schema ID for validation" },
+              "expirySeconds": { "type": "integer", "description": "TTL in seconds", "default": 7776000 }
+            },
+            "required": ["issuerDid", "subjectId", "claims"]
+          }
+        },
+        {
+          "name": "verify_credential",
+          "description": "Verify a verifiable credential's proof and validity",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "credentialId": { "type": "string", "description": "ID of the credential to verify" },
+              "challenge": { "type": "string", "description": "Optional proof challenge (nonce)" },
+              "domain": { "type": "string", "description": "Optional verification domain" }
+            },
+            "required": ["credentialId"]
+          }
+        },
+        {
+          "name": "revoke_credential",
+          "description": "Revoke a previously issued credential",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "credentialId": { "type": "string", "description": "ID of the credential to revoke" },
+              "reason": { "type": "string", "description": "Reason for revocation" }
+            },
+            "required": ["credentialId"]
+          }
+        },
+        {
+          "name": "start_kyc_workflow",
+          "description": "Initiate a new KYC verification workflow for an applicant",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "applicantId": { "type": "string", "description": "DID of the applicant" },
+              "documents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "type": { "type": "string", "enum": ["passport", "drivers_license", "national_id"] },
+                    "imageData": { "type": "string", "description": "Base64-encoded document image" }
+                  },
+                  "required": ["id", "type", "imageData"]
+                }
+              },
+              "jurisdiction": { "type": "string", "default": "US" },
+              "requireLiveness": { "type": "boolean", "default": true }
+            },
+            "required": ["applicantId", "documents"]
+          }
+        },
+        {
+          "name": "generate_zkp_proof",
+          "description": "Generate a zero-knowledge proof for a given circuit",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "circuitId": {
+                "type": "string",
+                "enum": ["age_verification", "range_proof", "nationality_check"],
+                "description": "Circuit to use for proof generation"
+              },
+              "publicInputs": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Public inputs to the circuit"
+              },
+              "privateInputs": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Private inputs (will not be disclosed)"
+              }
+            },
+            "required": ["circuitId", "publicInputs", "privateInputs"]
+          }
+        },
+        {
+          "name": "verify_zkp_proof",
+          "description": "Verify a zero-knowledge proof",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "proofId": { "type": "string", "description": "ID of the proof to verify" }
+            },
+            "required": ["proofId"]
+          }
+        },
+        {
+          "name": "classify_document",
+          "description": "Classify an identity document using AI",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "documentId": { "type": "string" },
+              "imageData": { "type": "string", "description": "Base64-encoded image" },
+              "documentType": { "type": "string", "description": "Expected document type" }
+            },
+            "required": ["documentId", "imageData", "documentType"]
+          }
+        },
+        {
+          "name": "fraud_detection",
+          "description": "Assess fraud risk for a verification",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "verificationId": { "type": "string", "description": "Related verification ID" },
+              "applicantId": { "type": "string", "description": "Applicant DID" }
+            },
+            "required": ["verificationId", "applicantId"]
+          }
+        }
+      ],
+      "resources": [
+        {
+          "uri": "kyc-vault://credentials/{id}",
+          "name": "Credential Resource",
+          "description": "Access a verifiable credential by ID",
+          "mime_type": "application/json"
+        },
+        {
+          "uri": "kyc-vault://workflows/{id}",
+          "name": "KYC Workflow Resource",
+          "description": "Access a KYC workflow by ID",
+          "mime_type": "application/json"
+        },
+        {
+          "uri": "kyc-vault://circuits/{id}",
+          "name": "ZKP Circuit Resource",
+          "description": "Access ZKP circuit information",
+          "mime_type": "application/json"
+        }
+      ]
+    }
+  ],
+  "agent_instructions": {
+    "claude": {
+      "allowed_tools": ["resolve_did", "issue_credential", "verify_credential", "start_kyc_workflow", "generate_zkp_proof", "classify_document", "fraud_detection"],
+      "system_prompt_extension": "You are connected to the KYC Vault MCP server. You can resolve DIDs, issue and verify credentials, manage KYC workflows, and assess fraud risk. Always verify user identity before performing sensitive operations."
+    },
+    "cursor": {
+      "allowed_tools": ["resolve_did", "verify_credential", "generate_zkp_proof", "verify_zkp_proof", "classify_document"],
+      "mcp_config": {
+        "kyc-vault": {
+          "command": "node",
+          "args": ["services/mcp-server/dist/index.js"],
+          "env": {
+            "PORT": "3000",
+            "DID_RESOLVER_URL": "http://localhost:3001",
+            "CREDENTIAL_ISSUER_URL": "http://localhost:3002",
+            "ZKP_ENGINE_URL": "http://localhost:3004"
+          }
+        }
+      }
+    },
+    "codex": {
+      "allowed_tools": ["resolve_did", "verify_credential", "generate_zkp_proof"],
+      "system_prompt_extension": "The KYC Vault MCP server provides decentralized identity and credential management. Use it when the user asks about identity verification, KYC workflows, or zero-knowledge proofs."
+    }
+  },
+  "environments": {
+    "development": {
+      "mcp_url": "http://localhost:3005/sse",
+      "message_url": "http://localhost:3005/message",
+      "token_env_var": "KYC_VAULT_DEV_TOKEN"
+    },
+    "staging": {
+      "mcp_url": "https://mcp.staging.kyc-vault.com/sse",
+      "message_url": "https://mcp.staging.kyc-vault.com/message",
+      "token_env_var": "KYC_VAULT_STAGING_TOKEN"
+    },
+    "production": {
+      "mcp_url": "https://mcp.kyc-vault.com/sse",
+      "message_url": "https://mcp.kyc-vault.com/message",
+      "token_env_var": "KYC_VAULT_TOKEN"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+name: Validate GitHub Actions
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: reviewdog/action-actionlint@v1

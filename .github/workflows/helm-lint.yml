@@ -1,0 +1,14 @@
+name: Helm Lint & Dry-Run
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+
+jobs:
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint charts/kyc-vault
+      - run: helm template kyc-vault charts/kyc-vault --dry-run

@@ -1,0 +1,210 @@
+# Cilium Tetragon Tracing Policy
+# ============================================================
+# Monitors credential service processes for security events:
+# - Process execution and ancestry
+# - File access patterns
+# - Network connections
+# - Capability usage
+
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "kyc-credential-service"
+  namespace: kyc-vault
+spec:
+  kprobes:
+    # ============================================================
+    # Process Execution Monitoring
+    # ============================================================
+    - call: "sys_execve"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"
+          name: "filename"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Prefix"
+              values:
+                - "/usr/bin/kyc-credential-service"
+                - "/usr/local/bin/kyc-credential-service"
+                - "./kyc-credential-service"
+          matchActions:
+            - action: "SigKill"
+              argError: -1
+              rateLimit: 100
+
+    - call: "sys_fork"
+      syscall: true
+      selectors:
+        - matchPIDs:
+            - operator: NotIn
+              values:
+                - 1
+                - 2
+
+    # ============================================================
+    # File Access Monitoring
+    # ============================================================
+    - call: "sys_openat"
+      syscall: true
+      args:
+        - index: 1
+          type: "string"
+          name: "pathname"
+        - index: 2
+          type: "int"
+          name: "flags"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "Prefix"
+              values:
+                - "/etc/kyc-vault/secrets"
+                - "/var/lib/kyc-vault/credentials"
+                - "/tmp/credential_export"
+          matchActions:
+            - action: "SigKill"
+
+    - call: "sys_read"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "fd"
+        - index: 1
+          type: "char[]"
+          name: "buf"
+          sizeArgIndex: 2
+        - index: 2
+          type: "size_t"
+          name: "count"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "GT"
+              values:
+                - 1024
+
+    # ============================================================
+    # Network Connection Monitoring
+    # ============================================================
+    - call: "sys_connect"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "sockfd"
+        - index: 1
+          type: "sockaddr"
+          name: "addr"
+        - index: 2
+          type: "int"
+          name: "addrlen"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "NotIn"
+              values:
+                - "127.0.0.1"
+                - "::1"
+                - "10.0.0.0/8"
+                - "172.16.0.0/12"
+                - "192.168.0.0/16"
+          matchActions:
+            - action: "SigKill"
+            - action: "Log"
+
+    - call: "sys_bind"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+          name: "sockfd"
+        - index: 1
+          type: "sockaddr"
+          name: "addr"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "Postfix"
+              values:
+                - ":8080"
+                - ":8443"
+                - ":9090"
+
+    # ============================================================
+    # Capability and Privilege Monitoring
+    # ============================================================
+    - call: "sys_setcap"
+      syscall: true
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "In"
+              values:
+                - "CAP_SYS_ADMIN"
+                - "CAP_NET_ADMIN"
+                - "CAP_SYS_PTRACE"
+                - "CAP_DAC_OVERRIDE"
+          matchActions:
+            - action: "SigKill"
+
+    # ============================================================
+    # Memory and Process Info Monitoring
+    # ============================================================
+    - call: "sys_ptrace"
+      syscall: true
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "In"
+              values:
+                - "PTRACE_TRACEME"
+                - "PTRACE_ATTACH"
+                - "PTRACE_PEEKTEXT"
+                - "PTRACE_PEEKDATA"
+          matchActions:
+            - action: "SigKill"
+
+  # ============================================================
+  # Tracepoints
+  # ============================================================
+  tracepoints:
+    - subsystem: "sched"
+      event: "sched_process_exec"
+      args:
+        - index: 0
+          type: "string"
+          name: "filename"
+        - index: 1
+          type: "uint32"
+          name: "pid"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Prefix"
+              values:
+                - "/usr/bin/kyc-"
+
+    - subsystem: "sched"
+      event: "sched_process_exit"
+      selectors:
+        - matchPIDs:
+            - operator: "InMap"
+              values:
+                - "ProcessTree"
+
+  # ============================================================
+  # Process Information
+  # ============================================================
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "kyc-credential-service"
+
+  # Rate limiting for tracing events
+  spec:
+    rateLimit:
+      eventsPerSecond: 1000
+      burstSize: 100

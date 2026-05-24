@@ -1,0 +1,237 @@
+# Prometheus Alerting Rules - KYC Vault
+# ============================================================
+groups:
+  - name: kyc-vault-service-health
+    interval: 30s
+    rules:
+      # ============================================================
+      # Service Availability
+      # ============================================================
+      - alert: KYCServiceDown
+        expr: up{job=~"kyc-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "KYC service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for >1 minute"
+          runbook_url: "https://docs.kyc-vault.com/runbooks/service-down"
+
+      - alert: KYCServiceCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total{namespace="kyc-vault"}[10m]) > 1
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.pod }} is crash looping"
+          description: "Pod {{ $labels.pod }} has restarted >1 times in 10 minutes"
+
+      - alert: KYCServiceHighCPU
+        expr: avg(rate(container_cpu_usage_seconds_total{namespace="kyc-vault"}[5m])) by (pod) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage on {{ $labels.pod }}"
+
+      - alert: KYCServiceHighMemory
+        expr: container_memory_usage_bytes{namespace="kyc-vault"} / container_spec_memory_limit_bytes{namespace="kyc-vault"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage on {{ $labels.pod }}"
+
+      - alert: KYCServiceOOMKilled
+        expr: increase(kube_pod_container_status_terminated_reason{reason="OOMKilled",namespace="kyc-vault"}[5m]) > 0
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} was OOM killed"
+
+      - alert: KYCServiceDiskFull
+        expr: node_filesystem_avail_bytes{mountpoint="/data",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/data"} < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Disk is nearly full on {{ $labels.instance }}"
+
+      # ============================================================
+      # API Performance SLOs
+      # ============================================================
+      - alert: KYCApiLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~"kyc-api.*"}[5m])) by (le, route)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API p95 latency > 2s on {{ $labels.route }}"
+          description: "p95 latency for {{ $labels.route }} is {{ $value }}s"
+
+      - alert: KYCApiErrorRateHigh
+        expr: sum(rate(http_requests_total{job=~"kyc-api.*",status=~"5.."}[5m])) / sum(rate(http_requests_total{job=~"kyc-api.*"}[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "API error rate > 1%"
+          description: "5xx error rate is {{ $value | humanizePercentage }}"
+
+      - alert: KYCApiRateLimited
+        expr: rate(http_requests_total{job=~"kyc-api.*",status="429"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High rate limiting on API"
+          description: "429 responses rate: {{ $value }}/s"
+
+      # ============================================================
+      # KYC Pipeline SLOs
+      # ============================================================
+      - alert: KYCPipelineFailureRate
+        expr: sum(rate(kyc_verifications_total{status="rejected"}[10m])) / sum(rate(kyc_verifications_total[10m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "KYC pipeline failure rate > 5%"
+
+      - alert: KYCPipelineStuck
+        expr: time() - max(kyc_session_duration_seconds{status="in_progress"}) by (session_id) > 300
+        for: 1m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "KYC session {{ $labels.session_id }} stuck for >5 min"
+
+      - alert: KYCLivenessFailureRate
+        expr: sum(rate(kyc_liveness_checks_total{status="failed"}[5m])) / sum(rate(kyc_liveness_checks_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "Liveness check failure rate > 10%"
+
+      # ============================================================
+      # ZKP Engine SLOs
+      # ============================================================
+      - alert: KYCZKPProofTimeExceeded
+        expr: histogram_quantile(0.95, sum(rate(zkp_proof_generation_duration_seconds_bucket[10m])) by (le)) > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: zkp
+        annotations:
+          summary: "ZKP proof generation p95 > 30s"
+
+      - alert: KYCZKPVerificationFailure
+        expr: rate(zkp_verifications_total{result="failed"}[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: zkp
+        annotations:
+          summary: "ZKP verification failures detected"
+
+      - alert: KYCZKPCircuitError
+        expr: rate(zkp_circuit_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: zkp
+        annotations:
+          summary: "ZKP circuit errors on {{ $labels.circuit }}"
+
+      # ============================================================
+      # Database SLOs
+      # ============================================================
+      - alert: KYCDatabaseConnectionsHigh
+        expr: pg_stat_database_numbackends{datname="kycvault"} > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High database connections on {{ $labels.instance }}"
+
+      - alert: KYCDatabaseReplicaLag
+        expr: pg_replication_lag_seconds > 30
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database replica lag > 30s"
+
+      - alert: KYCRedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis memory usage > 80%"
+
+      - alert: KYCRedisEvictions
+        expr: rate(redis_keyspace_evictions_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis evictions rate high"
+
+      # ============================================================
+      # Kafka SLOs
+      # ============================================================
+      - alert: KYCKafkaConsumerLag
+        expr: kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Kafka consumer lag > 1000 on {{ $labels.consumer_group }}"
+
+      - alert: KYCKafkaUnderReplicated
+        expr: kafka_topic_partition_under_replicated_partitions > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Kafka has under-replicated partitions"
+
+      # ============================================================
+      # Security SLOs
+      # ============================================================
+      - alert: KYCAuthFailureRate
+        expr: sum(rate(http_requests_total{job=~"kyc-api.*",status="401"}[5m])) > 20
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High authentication failure rate"
+
+      - alert: KYCTLSCertExpiring
+        expr: (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 30
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "TLS certificate for {{ $labels.name }} expires in <30 days"

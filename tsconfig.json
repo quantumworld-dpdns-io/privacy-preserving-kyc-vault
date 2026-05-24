@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2024"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": "dist/tsbuildinfo",
+    "paths": {
+      "@kyc-vault/core": ["./packages/core/src"],
+      "@kyc-vault/did": ["./packages/did/src"],
+      "@kyc-vault/zkp": ["./packages/zkp/src"],
+      "@kyc-vault/crypto": ["./packages/crypto/src"],
+      "@kyc-vault/api": ["./packages/api/src"],
+      "@kyc-vault/mcp": ["./packages/mcp-server/src"]
+    }
+  },
+  "include": ["src/**/*", "packages/*/src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

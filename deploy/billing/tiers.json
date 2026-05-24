@@ -1,0 +1,188 @@
+{
+  "tiers": [
+    {
+      "id": "free",
+      "name": "Free",
+      "description": "For evaluation and small-scale testing",
+      "monthlyPrice": "0.00",
+      "annualPrice": "0.00",
+      "currency": "USD",
+      "features": {
+        "verifications": 100,
+        "verificationsPerMonth": true,
+        "apiCalls": 1000,
+        "apiCallsPerMonth": true,
+        "aiInferences": 100,
+        "aiInferencesPerMonth": true,
+        "storageGb": 1,
+        "teamMembers": 1,
+        "zkpProofs": false,
+        "webhookEndpoints": 1,
+        "customBranding": false,
+        "sla": "none",
+        "support": "community",
+        "auditLogDays": 7,
+        "dataRetentionDays": 30
+      },
+      "rateLimits": {
+        "requestsPerSecond": 10,
+        "burstSize": 20,
+        "concurrentVerifications": 2
+      },
+      "meteredPricing": {
+        "additionalVerification": "0.50",
+        "additionalApiCall": "0.001",
+        "additionalAiInference": "0.05",
+        "additionalStorageGb": "1.00"
+      },
+      "metadata": {
+        "tierOrder": 0,
+        "isPublic": true,
+        "requiresPaymentMethod": false
+      }
+    },
+    {
+      "id": "starter",
+      "name": "Starter",
+      "description": "For growing businesses with moderate KYC needs",
+      "monthlyPrice": "99.00",
+      "annualPrice": "999.00",
+      "currency": "USD",
+      "features": {
+        "verifications": 1000,
+        "verificationsPerMonth": true,
+        "apiCalls": 50000,
+        "apiCallsPerMonth": true,
+        "aiInferences": 1000,
+        "aiInferencesPerMonth": true,
+        "storageGb": 10,
+        "teamMembers": 3,
+        "zkpProofs": false,
+        "webhookEndpoints": 3,
+        "customBranding": false,
+        "sla": "99.9",
+        "support": "email",
+        "auditLogDays": 30,
+        "dataRetentionDays": 90
+      },
+      "rateLimits": {
+        "requestsPerSecond": 50,
+        "burstSize": 100,
+        "concurrentVerifications": 10
+      },
+      "meteredPricing": {
+        "additionalVerification": "0.40",
+        "additionalApiCall": "0.0008",
+        "additionalAiInference": "0.04",
+        "additionalStorageGb": "0.80"
+      },
+      "metadata": {
+        "tierOrder": 1,
+        "isPublic": true,
+        "requiresPaymentMethod": true
+      }
+    },
+    {
+      "id": "professional",
+      "name": "Professional",
+      "description": "For high-volume KYC processing with advanced features",
+      "monthlyPrice": "499.00",
+      "annualPrice": "4999.00",
+      "currency": "USD",
+      "features": {
+        "verifications": 10000,
+        "verificationsPerMonth": true,
+        "apiCalls": 500000,
+        "apiCallsPerMonth": true,
+        "aiInferences": 10000,
+        "aiInferencesPerMonth": true,
+        "storageGb": 100,
+        "teamMembers": 10,
+        "zkpProofs": true,
+        "zkpProofsPerMonth": 1000,
+        "webhookEndpoints": 10,
+        "customBranding": true,
+        "sla": "99.95",
+        "support": "priority",
+        "auditLogDays": 90,
+        "dataRetentionDays": 365
+      },
+      "rateLimits": {
+        "requestsPerSecond": 200,
+        "burstSize": 500,
+        "concurrentVerifications": 50
+      },
+      "meteredPricing": {
+        "additionalVerification": "0.30",
+        "additionalApiCall": "0.0005",
+        "additionalAiInference": "0.03",
+        "additionalStorageGb": "0.60",
+        "additionalZkpProof": "0.08"
+      },
+      "metadata": {
+        "tierOrder": 2,
+        "isPublic": true,
+        "requiresPaymentMethod": true
+      }
+    },
+    {
+      "id": "enterprise",
+      "name": "Enterprise",
+      "description": "Custom solutions for large organizations with dedicated infrastructure",
+      "monthlyPrice": "custom",
+      "annualPrice": "custom",
+      "currency": "USD",
+      "features": {
+        "verifications": -1,
+        "verificationsPerMonth": false,
+        "apiCalls": -1,
+        "apiCallsPerMonth": false,
+        "aiInferences": -1,
+        "aiInferencesPerMonth": false,
+        "storageGb": -1,
+        "teamMembers": -1,
+        "zkpProofs": true,
+        "zkpProofsPerMonth": -1,
+        "webhookEndpoints": -1,
+        "customBranding": true,
+        "sla": "99.99",
+        "support": "dedicated",
+        "auditLogDays": 365,
+        "dataRetentionDays": 2555
+      },
+      "rateLimits": {
+        "requestsPerSecond": -1,
+        "burstSize": -1,
+        "concurrentVerifications": -1
+      },
+      "meteredPricing": {
+        "additionalVerification": "custom",
+        "additionalApiCall": "custom",
+        "additionalAiInference": "custom",
+        "additionalStorageGb": "custom",
+        "additionalZkpProof": "custom"
+      },
+      "metadata": {
+        "tierOrder": 3,
+        "isPublic": false,
+        "requiresPaymentMethod": true,
+        "requiresContract": true,
+        "minCommitmentMonths": 12
+      }
+    }
+  ],
+  "defaultTier": "free",
+  "billingCycleOptions": ["monthly", "annual"],
+  "currencyOptions": ["USD", "EUR", "GBP", "SGD"],
+  "taxConfiguration": {
+    "defaultTaxRate": "0",
+    "vatCountries": ["GB", "DE", "FR", "IT", "ES", "NL", "SG"],
+    "vatRate": "0.20",
+    "taxExemptCategories": ["nonprofit", "government", "education"]
+  },
+  "promotions": {
+    "annualDiscount": 0.1667,
+    "referralCredits": "25.00",
+    "starterTrialDays": 14
+  }
+}

@@ -1,0 +1,23 @@
+[package]
+name = "kyc-vault-crypto-pqc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+rand.workspace = true
+aes-gcm.workspace = true
+x25519-dalek.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+argon2 = "0.5"
+curve25519-dalek = "4"
+
+[dev-dependencies]
+hex.workspace = true

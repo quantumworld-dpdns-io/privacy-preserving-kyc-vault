@@ -1,0 +1,251 @@
+# Chaos Mesh Experiment - KYC Vault Pod Failure Testing
+# ============================================================
+# Tests system resilience against pod failures, network partitions,
+# and resource exhaustion scenarios.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: kyc-vault-pod-failure-weekly
+  namespace: kyc-vault
+spec:
+  schedule: "0 2 * * 0"  # Weekly on Sunday at 2 AM
+  type: Workflow
+  workflow:
+    entry: main-workflow
+    templates:
+      # ============================================================
+      # Main Workflow - Sequential experiment execution
+      # ============================================================
+      - name: main-workflow
+        templateType: Serial
+        children:
+          - credential-service-failure
+          - ai-inference-failure
+          - zkp-engine-failure
+          - dependency-partition
+          - recovery-validation
+
+      # ============================================================
+      # Experiment 1: Credential Service Pod Failure
+      # ============================================================
+      - name: credential-service-failure
+        templateType: Task
+        deadline: 10m
+        task:
+          container:
+            name: chaos-experiment
+            image: chaos-mesh/chaos-mesh:v2.7.0
+          chaos:
+            - name: kill-credential-pods
+              kind: PodChaos
+              action: pod-failure
+              duration: 5m
+              selector:
+                namespaces:
+                  - kyc-vault
+                labelSelectors:
+                  app.kubernetes.io/name: kyc-credential-service
+                podPhaseSelectorList:
+                  - Running
+              mode: one
+              gracePeriod: 30
+          conditionalBranches:
+            - target: ai-inference-failure
+              expression: 'exitCode == 0'
+            - target: rollback
+              expression: 'exitCode != 0'
+
+      # ============================================================
+      # Experiment 2: AI Inference Service Failure
+      # ============================================================
+      - name: ai-inference-failure
+        templateType: Task
+        deadline: 10m
+        task:
+          chaos:
+            - name: kill-ai-pods
+              kind: PodChaos
+              action: pod-failure
+              duration: 3m
+              selector:
+                namespaces:
+                  - kyc-vault
+                labelSelectors:
+                  app.kubernetes.io/name: kyc-ai-inference
+              mode: one
+            - name: stress-ai-memory
+              kind: StressChaos
+              action: stress-cpu
+              duration: 2m
+              selector:
+                namespaces:
+                  - kyc-vault
+                labelSelectors:
+                  app.kubernetes.io/name: kyc-ai-inference
+              mode: fixed-percent
+              value: "50"
+              stressors:
+                cpu:
+                  workers: 4
+                  load: 80
+          conditionalBranches:
+            - target: zkp-engine-failure
+              expression: 'exitCode == 0'
+
+      # ============================================================
+      # Experiment 3: ZKP Engine Failure + Recovery
+      # ============================================================
+      - name: zkp-engine-failure
+        templateType: Task
+        deadline: 15m
+        task:
+          chaos:
+            - name: kill-zkp-pods
+              kind: PodChaos
+              action: pod-failure
+              duration: 8m
+              selector:
+                namespaces:
+                  - kyc-vault
+                labelSelectors:
+                  app.kubernetes.io/name: kyc-zkp-engine
+              mode: all
+              gracePeriod: 60
+          conditionalBranches:
+            - target: dependency-partition
+              expression: 'exitCode == 0'
+
+      # ============================================================
+      # Experiment 4: Network Partition (Redis + Kafka)
+      # ============================================================
+      - name: dependency-partition
+        templateType: Task
+        deadline: 8m
+        task:
+          chaos:
+            - name: partition-redis
+              kind: NetworkChaos
+              action: partition
+              duration: 3m
+              selector:
+                namespaces:
+                  - kyc-vault
+                labelSelectors:
+                  app.kubernetes.io/name: kyc-credential-service
+              mode: all
+              direction: both
+              target:
+                selector:
+                  namespaces:
+                    - kyc-vault
+                  labelSelectors:
+                    app.kubernetes.io/name: kyc-redis
+                mode: all
+            - name: partition-kafka
+              kind: NetworkChaos
+              action: partition
+              duration: 2m
+              selector:
+                namespaces:
+                  - kyc-vault
+                labelSelectors:
+                  app.kubernetes.io/name: kyc-orchestrator
+              mode: all
+              target:
+                selector:
+                  namespaces:
+                    - kyc-vault
+                  labelSelectors:
+                    app.kubernetes.io/name: kyc-kafka
+                mode: all
+            - name: inject-delay
+              kind: NetworkChaos
+              action: delay
+              duration: 4m
+              selector:
+                namespaces:
+                  - kyc-vault
+                labelSelectors:
+                  app.kubernetes.io/name: kyc-api-gateway
+              mode: all
+              delay:
+                latency: 2000ms
+                jitter: 500ms
+                correlation: 50
+          conditionalBranches:
+            - target: recovery-validation
+              expression: 'exitCode == 0'
+
+      # ============================================================
+      # Experiment 5: Recovery Validation
+      # ============================================================
+      - name: recovery-validation
+        templateType: Serial
+        children:
+          - check-pod-recovery
+          - check-api-health
+          - check-data-integrity
+
+      - name: check-pod-recovery
+        templateType: Task
+        deadline: 5m
+        task:
+          container:
+            name: recovery-checker
+            image: bitnami/kubectl:latest
+            command:
+              - /bin/sh
+              - -c
+              - |
+                kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=kyc-credential-service -n kyc-vault --timeout=300s &&
+                kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=kyc-ai-inference -n kyc-vault --timeout=300s &&
+                kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=kyc-zkp-engine -n kyc-vault --timeout=300s &&
+                echo "All pods recovered successfully"
+
+      - name: check-api-health
+        templateType: Task
+        deadline: 3m
+        task:
+          container:
+            image: curlimages/curl:latest
+            command:
+              - /bin/sh
+              - -c
+              - |
+                curl -sf https://api.kyc-vault.com/v1/health &&
+                curl -sf https://api.kyc-vault.com/v1/health/ready &&
+                echo "API health checks passed"
+
+      - name: check-data-integrity
+        templateType: Task
+        deadline: 5m
+        task:
+          container:
+            image: postgres:16
+            command:
+              - /bin/sh
+              - -c
+              - |
+                PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME \
+                  -c "SELECT count(*) FROM credentials WHERE status = 'active'" &&
+                PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME \
+                  -c "SELECT count(*) FROM audit_log WHERE created_at > NOW() - INTERVAL '1 hour'" &&
+                echo "Data integrity checks passed"
+
+      # ============================================================
+      # Rollback template
+      # ============================================================
+      - name: rollback
+        templateType: Task
+        deadline: 2m
+        task:
+          container:
+            image: bitnami/kubectl:latest
+            command:
+              - /bin/sh
+              - -c
+              - |
+                echo "Rolling back failed experiment" &&
+                kubectl delete chaos -n kyc-vault --all &&
+                echo "Chaos resources cleaned up"

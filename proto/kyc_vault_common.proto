@@ -1,0 +1,32 @@
+syntax = "proto3";
+package kyc_vault;
+option go_package = "github.com/quantumworld-dpdns-io/kyc-vault/proto";
+
+message DidIdentifier {
+  string did = 1;
+  string method = 2;
+  string method_specific_id = 3;
+}
+
+message CredentialRef {
+  string id = 1;
+  string schema = 2;
+  string issuer_did = 3;
+  string subject_did = 4;
+  int64 issued_at = 5;
+  int64 expires_at = 6;
+}
+
+message ProofRequest {
+  string circuit_id = 1;
+  repeated string public_inputs = 2;
+  map<string, bytes> private_inputs = 3;
+}
+
+message ProofResponse {
+  string proof_id = 1;
+  bytes proof = 2;
+  bytes public_outputs = 3;
+  string circuit_id = 4;
+  int64 proving_time_ms = 5;
+}

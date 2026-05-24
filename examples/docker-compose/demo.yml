@@ -1,0 +1,314 @@
+# Docker Compose for a complete KYC Vault demo environment
+#
+# Spins up all core services with persistent storage, health checks,
+# and network isolation.
+#
+# Usage:
+#   docker compose -f demo.yml up -d
+#   docker compose -f demo.yml down
+#
+# Services:
+#   - postgres:    Primary database (credential storage, workflow state)
+#   - redis:       Cache, session store, rate limiting
+#   - minio:       S3-compatible object store for document images
+#   - weaviate:    Vector database for AI embeddings
+#   - ollama:      Local LLM for AI inference (document classification, fraud detection)
+#   - did-resolver: DID resolution service
+#   - credential-issuer: Verifiable credential issuance
+#   - kyc-orchestrator: KYC workflow state machine
+#   - zkp-engine: Zero-knowledge proof generation & verification
+#   - mcp-server: Model Context Protocol server
+#   - opa:         Open Policy Agent for access control
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Data Stores
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    container_name: kyc-postgres
+    environment:
+      POSTGRES_DB: kyc_vault
+      POSTGRES_USER: kyc
+      POSTGRES_PASSWORD: kyc_dev_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kyc -d kyc_vault"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  redis:
+    image: redis:7-alpine
+    container_name: kyc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes --requirepass redis_dev_pass
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_dev_pass", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  minio:
+    image: minio/minio:latest
+    container_name: kyc-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  weaviate:
+    image: semitechnologies/weaviate:1.28
+    container_name: kyc-weaviate
+    ports:
+      - "8080:8080"
+    environment:
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      DEFAULT_VECTORIZER_MODULE: text2vec-transformers
+      ENABLE_MODULES: text2vec-transformers
+      TRANSFORMERS_INFERENCE_API: http://t2v-transformers:8080
+      CLUSTER_HOSTNAME: "kyc-weaviate-node"
+    volumes:
+      - weaviatedata:/var/lib/weaviate
+    depends_on:
+      - t2v-transformers
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  t2v-transformers:
+    image: semitechnologies/transformers-inference:sentence-transformers-all-MiniLM-L6-v2
+    container_name: kyc-t2v
+    ports:
+      - "8081:8080"
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kyc-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollamadata:/root/.ollama
+    environment:
+      OLLAMA_HOST: "0.0.0.0"
+      OLLAMA_MODELS: "/root/.ollama/models"
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             ollama pull llama3.2-vision:latest &&
+             ollama pull mistral:latest &&
+             wait"
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  # ---------------------------------------------------------------------------
+  # Core Services
+  # ---------------------------------------------------------------------------
+  did-resolver:
+    image: kyc-vault/did-resolver:latest
+    container_name: kyc-did-resolver
+    build:
+      context: ../../
+      dockerfile: services/did-resolver/Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      PORT: "3000"
+      REDIS_URL: "redis://:redis_dev_pass@redis:6379"
+      DID_CACHE_TTL: "300"
+      LOG_LEVEL: "debug"
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  credential-issuer:
+    image: kyc-vault/credential-issuer:latest
+    container_name: kyc-credential-issuer
+    build:
+      context: ../../
+      dockerfile: services/credential-issuer/Dockerfile
+    ports:
+      - "3002:3000"
+    environment:
+      PORT: "3000"
+      DATABASE_URL: "postgres://kyc:kyc_dev_pass@postgres:5432/kyc_vault"
+      REDIS_URL: "redis://:redis_dev_pass@redis:6379"
+      DEFAULT_EXPIRY_SECONDS: "7776000"
+      PQC_ENABLED: "true"
+      LOG_LEVEL: "debug"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  kyc-orchestrator:
+    image: kyc-vault/kyc-orchestrator:latest
+    container_name: kyc-orchestrator
+    build:
+      context: ../../
+      dockerfile: services/kyc-orchestrator/Dockerfile
+    ports:
+      - "3003:3000"
+    environment:
+      PORT: "3000"
+      DATABASE_URL: "postgres://kyc:kyc_dev_pass@postgres:5432/kyc_vault"
+      REDIS_URL: "redis://:redis_dev_pass@redis:6379"
+      AI_INFERENCE_URL: "http://ai-inference:3000"
+      ZKP_ENGINE_URL: "http://zkp-engine:3000"
+      OLLAMA_URL: "http://ollama:11434"
+      LOG_LEVEL: "debug"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  zkp-engine:
+    image: kyc-vault/zkp-engine:latest
+    container_name: kyc-zkp-engine
+    build:
+      context: ../../
+      dockerfile: services/zkp-engine/Dockerfile
+    ports:
+      - "3004:3000"
+    environment:
+      PORT: "3000"
+      REDIS_URL: "redis://:redis_dev_pass@redis:6379"
+      CIRCUIT_DIR: "/etc/circuits"
+      LOG_LEVEL: "debug"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../circuits:/etc/circuits:ro
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  mcp-server:
+    image: kyc-vault/mcp-server:latest
+    container_name: kyc-mcp-server
+    build:
+      context: ../../
+      dockerfile: services/mcp-server/Dockerfile
+    ports:
+      - "3005:3000"
+    environment:
+      PORT: "3000"
+      SSE_ENDPOINT: "/sse"
+      MESSAGE_ENDPOINT: "/message"
+      DID_RESOLVER_URL: "http://did-resolver:3000"
+      CREDENTIAL_ISSUER_URL: "http://credential-issuer:3000"
+      ZKP_ENGINE_URL: "http://zkp-engine:3000"
+      LOG_LEVEL: "debug"
+    depends_on:
+      - did-resolver
+      - credential-issuer
+      - zkp-engine
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  opa:
+    image: openpolicyagent/opa:latest
+    container_name: kyc-opa
+    ports:
+      - "8181:8181"
+    command:
+      - "run"
+      - "--server"
+      - "--log-level=debug"
+      - "--addr=:8181"
+      - "/policies/"
+    volumes:
+      - ../../deploy/opa:/policies:ro
+    logging: *default-logging
+    networks:
+      - kyc-vault
+
+  # ---------------------------------------------------------------------------
+  # Monitoring (optional, uncomment as needed)
+  # ---------------------------------------------------------------------------
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: kyc-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ../../deploy/prometheus:/etc/prometheus:ro
+  #     - promdata:/prometheus
+  #   logging: *default-logging
+  #   networks:
+  #     - kyc-vault
+  #
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: kyc-grafana
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafanadata:/var/lib/grafana
+  #   logging: *default-logging
+  #   networks:
+  #     - kyc-vault
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  weaviatedata:
+  ollamadata:
+  # promdata:
+  # grafanadata:
+
+networks:
+  kyc-vault:
+    name: kyc-vault-demo
+    driver: bridge

@@ -1,0 +1,115 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "**.tf"
+      - "**.tfvars"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to apply to"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      plan_artifact:
+        description: "Plan artifact name (from terraform-plan)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  TF_DIR: terraform
+  TF_VERSION: 1.9.0
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply (${{ github.event.inputs.environment || 'staging' }})
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+    defaults:
+      run:
+        working-directory: ${{ env.TF_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Download plan artifact
+        if: github.event.inputs.plan_artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.event.inputs.plan_artifact }}
+          path: ${{ env.TF_DIR }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config=backends/${{ github.event.inputs.environment || 'staging' }}.backend.hcl \
+            -reconfigure
+
+      - name: Terraform Workspace
+        run: |
+          terraform workspace select ${{ github.event.inputs.environment || 'staging' }} || \
+          terraform workspace new ${{ github.event.inputs.environment || 'staging' }}
+
+      - name: Terraform Apply
+        id: apply
+        run: |
+          if [ -f tfplan ]; then
+            terraform apply -no-color -auto-approve tfplan
+          else
+            terraform apply \
+              -var-file=env/${{ github.event.inputs.environment || 'staging' }}.tfvars \
+              -no-color \
+              -auto-approve
+          fi
+
+      - name: Terraform Output
+        if: success()
+        run: terraform output -no-color
+
+      - name: Notify on success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_INFRA_CHANNEL }}",
+              "text": ":white_check_mark: Terraform apply *succeeded* for \`${{ github.event.inputs.environment || 'staging' }}\`\nRepo: ${{ github.repository }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "channel": "${{ vars.SLACK_INFRA_CHANNEL }}",
+              "text": ":x: Terraform apply *failed* for \`${{ github.event.inputs.environment || 'staging' }}\`\nRepo: ${{ github.repository }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
