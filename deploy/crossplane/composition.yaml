@@ -1,0 +1,220 @@
+# Crossplane Composition - KYC Vault Platform Resources
+# ============================================================
+# Defines how composite resources (XRs) are composed from
+# managed resources for platform provisioning.
+
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xkycplatform.kyc-vault.crossplane.io
+  labels:
+    provider: aws
+    type: platform
+spec:
+  writeConnectionSecretsToNamespace: crossplane-system
+  compositeTypeRef:
+    apiVersion: kyc-vault.crossplane.io/v1alpha1
+    kind: XKYCPlatform
+
+  resources:
+    # ============================================================
+    # VPC
+    # ============================================================
+    - name: vpc
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: VPC
+        spec:
+          forProvider:
+            region: us-east-1
+            cidrBlock: "10.0.0.0/16"
+            enableDnsHostnames: true
+            enableDnsSupport: true
+            tags:
+              Name: kyc-vault-vpc
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # ============================================================
+    # Subnets (Private)
+    # ============================================================
+    - name: private-subnets
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: Subnet
+        spec:
+          forProvider:
+            region: us-east-1
+            vpcIdSelector:
+              matchControllerRef: true
+            mapPublicIpOnLaunch: false
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.privateSubnetCIDRs
+          toFieldPath: spec.forProvider.cidrBlock
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.availabilityZones
+          toFieldPath: spec.forProvider.availabilityZone
+
+    # ============================================================
+    # EKS Cluster
+    # ============================================================
+    - name: eks-cluster
+      base:
+        apiVersion: eks.aws.upbound.io/v1beta1
+        kind: Cluster
+        spec:
+          forProvider:
+            region: us-east-1
+            roleArnSelector:
+              matchControllerRef: true
+            version: "1.30"
+            vpcConfig:
+              - endpointPrivateAccess: true
+                endpointPublicAccess: false
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.clusterVersion
+          toFieldPath: spec.forProvider.version
+
+    # ============================================================
+    # RDS PostgreSQL
+    # ============================================================
+    - name: rds-postgresql
+      base:
+        apiVersion: rds.aws.upbound.io/v1beta1
+        kind: Instance
+        spec:
+          forProvider:
+            region: us-east-1
+            engine: postgres
+            engineVersion: "16.3"
+            instanceClass: db.r7g.large
+            allocatedStorage: 100
+            storageEncrypted: true
+            dbName: kycdb
+            username: kyc_admin
+            passwordSecretRef:
+              name: db-password
+              namespace: crossplane-system
+              key: password
+            skipFinalSnapshot: true
+            backupRetentionPeriod: 7
+            backupWindow: "03:00-04:00"
+            maintenanceWindow: "Sun:04:00-Sun:05:00"
+            publiclyAccessible: false
+            storageType: gp3
+            autoGeneratePassword: true
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.dbInstanceClass
+          toFieldPath: spec.forProvider.instanceClass
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.dbStorageGB
+          toFieldPath: spec.forProvider.allocatedStorage
+
+    # ============================================================
+    # ElastiCache Redis
+    # ============================================================
+    - name: elasticache-redis
+      base:
+        apiVersion: cache.aws.upbound.io/v1beta1
+        kind: ReplicationGroup
+        spec:
+          forProvider:
+            region: us-east-1
+            replicationGroupDescription: KYC Vault Redis
+            engine: redis
+            engineVersion: "7.1"
+            nodeType: cache.r7g.large
+            port: 6379
+            automaticFailoverEnabled: true
+            atRestEncryptionEnabled: true
+            transitEncryptionEnabled: true
+            autoGeneratePassword: true
+            passwordSecretRef:
+              name: redis-auth
+              namespace: crossplane-system
+              key: password
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # ============================================================
+    # S3 Bucket (Iceberg Data Lake)
+    # ============================================================
+    - name: s3-iceberg
+      base:
+        apiVersion: s3.aws.upbound.io/v1beta1
+        kind: Bucket
+        spec:
+          forProvider:
+            region: us-east-1
+            acl: private
+            forceDestroy: true
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # ============================================================
+    # MSK Kafka
+    # ============================================================
+    - name: msk-kafka
+      base:
+        apiVersion: kafka.aws.upbound.io/v1beta1
+        kind: Cluster
+        spec:
+          forProvider:
+            region: us-east-1
+            kafkaVersion: "3.7.0"
+            numberOfBrokerNodes: 3
+            brokerNodeGroupInfo:
+              - instanceType: kafka.m7i.large
+                storageInfo:
+                  - ebsStorageInfo:
+                      - volumeSize: 500
+          writeConnectionSecretToRef:
+            name: kafka-connection
+            namespace: crossplane-system
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # ============================================================
+    # IAM Role for EKS service accounts
+    # ============================================================
+    - name: irsa-role
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Role
+        spec:
+          forProvider:
+            assumeRolePolicyDocument: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [{
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": "arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/${OIDC_ID}"
+                  },
+                  "Action": "sts:AssumeRoleWithWebIdentity"
+                }]
+              }
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
