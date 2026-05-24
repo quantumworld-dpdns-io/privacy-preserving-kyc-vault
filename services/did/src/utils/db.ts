@@ -4,7 +4,7 @@ import { getConfig } from '../config.js';
 const config = getConfig();
 
 export const pool = new pg.Pool({
-  connectionString: config.databaseUrl,
+  connectionString: config.dbUrl,
   min: config.dbPoolMin ?? 5,
   max: config.dbPoolMax ?? 20,
 });
