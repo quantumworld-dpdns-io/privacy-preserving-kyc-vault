@@ -78,8 +78,8 @@ impl HostFunctionRegistry {
             Self::log_message_impl(&mut caller, msg_ptr, msg_len)
         })?;
 
-        linker.func_wrap("kyc", "random_bytes", |_caller: Caller<'_, HostFunctionContext>, out_ptr: i32, len: i32| -> i32 {
-            Self::random_bytes_impl(out_ptr, len)
+        linker.func_wrap("kyc", "random_bytes", |mut caller: Caller<'_, HostFunctionContext>, out_ptr: i32, len: i32| -> i32 {
+            Self::random_bytes_impl(&mut caller, out_ptr, len)
         })?;
 
         Ok(())
