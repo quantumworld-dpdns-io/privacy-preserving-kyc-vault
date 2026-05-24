@@ -26,6 +26,7 @@ export const useKycApi = () => {
     
     // KYC
     createWorkflow: (data: any) => fetchApi('/kyc/workflows', { method: 'POST', body: data }),
+    getWorkflows: () => fetchApi('/kyc/workflows'),
     getWorkflow: (id: string) => fetchApi(`/kyc/workflows/${id}`),
     transitionWorkflow: (id: string, data: any) => fetchApi(`/kyc/workflows/${id}/transition`, { method: 'POST', body: data }),
 
