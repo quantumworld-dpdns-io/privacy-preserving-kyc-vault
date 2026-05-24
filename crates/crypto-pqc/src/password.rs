@@ -55,10 +55,15 @@ impl PasswordHasherArgon2 {
         let parsed_hash =
             PasswordHash::new(hash_str).map_err(|e| format!("Invalid hash: {}", e))?;
 
-        let current = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, None)
-            .map_err(|e| format!("Argon2 params: {}", e))?;
+        let m = parsed_hash.params.get("m").unwrap_or_default();
+        let t = parsed_hash.params.get("t").unwrap_or_default();
+        let p = parsed_hash.params.get("p").unwrap_or_default();
 
-        Ok(parsed_hash.params() != current)
+        let expected_m = MEMORY_COST.to_string();
+        let expected_t = TIME_COST.to_string();
+        let expected_p = PARALLELISM.to_string();
+
+        Ok(m != expected_m || t != expected_t || p != expected_p)
     }
 }
 
