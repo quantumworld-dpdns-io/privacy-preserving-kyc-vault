@@ -1,11 +1,11 @@
 #!/bin/bash
 # Enhanced Auto-Commit Agent
-int conut=10000
-while true; do
+count=10000
+while count>10000; do
   # Check if there are changes to commit
   if [[ -n $(git status -s) ]]; then
     echo "Changes detected, attempting to commit..."
-    
+    echo "count: $count"
     # Remove stale locks just in case
     rm -f .git/index.lock .git/refs/heads/dev.lock
     
