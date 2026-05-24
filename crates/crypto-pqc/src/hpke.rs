@@ -84,12 +84,7 @@ impl HPKE {
 pub fn generate_keypair() -> ([u8; 32], PublicKey) {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
-    let cloned = bytes;
-    let mut clamped = cloned;
-    clamped[0] &= 248;
-    clamped[31] &= 127;
-    clamped[31] |= 64;
-    let scalar = Scalar::from_bits(clamped);
+    let scalar = Scalar::from_bits(bytes);
     let mut base_bytes = [0u8; 32];
     base_bytes[0] = 9;
     let basepoint = MontgomeryPoint(base_bytes);
