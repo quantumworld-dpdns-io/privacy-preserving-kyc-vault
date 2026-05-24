@@ -96,7 +96,7 @@ mod tests {
             hex::decode("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f").unwrap()
         ).unwrap();
         let expected_shared = <[u8; 32]>::try_from(
-            hex::decode("4a5d9d5ba4ce2de8198e4c52b5168b9c5e2b0c6c111f5edc0b26e5e4b0e1f1b").unwrap()
+            hex::decode("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742").unwrap()
         ).unwrap();
 
         let shared = HPKE::x25519_dh(&alice_priv, &bob_pub).unwrap();
