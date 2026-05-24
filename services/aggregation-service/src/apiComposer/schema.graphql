@@ -1,0 +1,1003 @@
+scalar DateTime
+
+# Stripe Types
+type PaymentIntent {
+  id: ID!
+  amount: Int!
+  currency: String!
+  status: String!
+  client_secret: String
+  created: Int!
+  metadata: String
+}
+
+type Refund {
+  id: ID!
+  amount: Int!
+  currency: String!
+  status: String!
+  payment_intent: ID!
+  created: Int!
+}
+
+input PaymentIntentInput {
+  amount: Int!
+  currency: String!
+  metadata: String
+}
+
+input PaymentIntentConfirmInput {
+  payment_method: String
+  return_url: String
+}
+
+input RefundInput {
+  payment_intent: ID!
+  amount: Int
+  reason: String
+}
+
+# Plaid Types
+type LinkTokenResponse {
+  link_token: String!
+  expiration: String!
+  request_id: String!
+}
+
+type PlaidAccount {
+  account_id: String!
+  balances: PlaidAccountBalances!
+  mask: String!
+  name: String!
+  official_name: String
+  subtype: String!
+  type: String!
+  verification_status: String
+}
+
+type PlaidAccountBalances {
+  available: Float
+  current: Float
+  iso_currency_code: String
+  limit: Float
+  unofficial_currency_code: String
+}
+
+type PlaidTransaction {
+  account_id: String!
+  amount: Float!
+  category: [String!]!
+  category_id: String
+  date: String!
+  pending: Boolean!
+  pending_transaction_id: String
+  transaction_id: ID!
+  transaction_type: String
+}
+
+type PlaidTransactionsResponse {
+  accounts: [PlaidAccount!]!
+  transactions: [PlaidTransaction!]!
+  total_transactions: Int!
+}
+
+type PlaidIdentity {
+  addresses: [PlaidIdentityAddress!]!
+  email_addresses: [PlaidIdentityEmail!]!
+  phone_numbers: [PlaidIdentityPhone!]!
+  names: [String!]!
+}
+
+type PlaidIdentityAddress {
+  data: PlaidIdentityData!
+  primary: Boolean!
+  type: String
+}
+
+type PlaidIdentityEmail {
+  data: PlaidIdentityData!
+  primary: Boolean!
+  type: String
+}
+
+type PlaidIdentityPhone {
+  data: PlaidIdentityData!
+  primary: Boolean!
+  type: String
+}
+
+type PlaidIdentityData {
+  data: String!
+  type: String
+}
+
+input PlaidLinkTokenInput {
+  client_user_id: String!
+  products: [String!]
+  country_codes: [String!]
+  language: String
+  webhook: String
+}
+
+# Jumio Types
+type JumioVerification {
+  merchantScanReference: String!
+  referenceID: String
+  status: String!
+  result: String
+  createdTime: String!
+  modifiedTime: String
+}
+
+type JumioResult {
+  decision: String
+  rejectReason: String
+  approvalCode: String
+  documents: [JumioDocument!]!
+}
+
+type JumioDocument {
+  documentType: String
+  status: String
+  rejectReason: String
+  data: JumioDocumentData
+}
+
+type JumioDocumentData {
+  firstName: String
+  lastName: String
+  documentNumber: String
+  dateOfBirth: String
+  expiryDate: String
+  issuingCountry: String
+}
+
+input JumioVerificationInput {
+  customerId: String!
+  callback: String
+  referenceId: String
+  allowedCountries: [String!]
+  documentTypes: [String!]
+  gender: String
+}
+
+# Onfido Types
+type OnfidoApplicant {
+  id: String!
+  created_at: String!
+  href: String!
+  first_name: String
+  last_name: String
+  email: String
+  phone: String
+  address: OnfidoAddress
+}
+
+type OnfidoAddress {
+  building_number: String
+  street: String
+  town: String
+  postcode: String
+  country: String
+}
+
+type OnfidoDocument {
+  id: String!
+  href: String!
+  file_name: String
+  content_type: String
+  file_size: Int
+  hold: String
+  created_at: String!
+}
+
+type OnfidoCheck {
+  id: String!
+  href: String!
+  name: String!
+  status: String!
+  result: String
+  created_at: String!
+  completed_at: String
+  break_down: OnfidoCheckBreakdown
+  properties: OnfidoCheckProperties
+}
+
+type OnfidoCheckBreakdown {
+  identity: String
+  address: String
+  visa: String
+  police_record: String
+  watchlist: String
+  credit_report: String
+  fraud_simulator: String
+}
+
+type OnfidoCheckProperties {
+  document: OnfidoCheckPropertiesDocument
+  facial_similarity: String
+}
+
+type OnfidoCheckPropertiesDocument {
+  authenticity: String
+  data_consistency: String
+  data_quality: String
+  expiry_date: String
+  front: OnfidoCheckPropertiesDocumentSide
+  back: OnfidoCheckPropertiesDocumentSide
+}
+
+type OnfidoCheckPropertiesDocumentSide {
+  glares: String
+  obscured: String
+  resolution: String
+  texture: String
+  lighting: String
+  condition: String
+  colour_balance: String
+}
+
+input OnfidoApplicantInput {
+  first_name: String!
+  last_name: String!
+  email: String
+  phone: String
+  address: OnfidoAddressInput
+}
+
+input OnfidoAddressInput {
+  building_number: String
+  street: String
+  town: String
+  postcode: String
+  country: String
+}
+
+input OnfidoCheckInput {
+  applicant_id: String!
+  report_names: [String!]!
+  options: String
+}
+
+# Experian Types
+type ExperianCreditReport {
+  personal_info: ExperianPersonalInfo!
+  credit_summary: ExperianCreditSummary!
+  account_summary: ExperianAccountSummary!
+  score_model_used: String
+  vantage_score: Int
+  fico_score: Int
+}
+
+type ExperianPersonalInfo {
+  name: String!
+  address: ExperianAddress!
+  date_of_birth: String
+  ssn: String
+}
+
+type ExperianAddress {
+  line1: String!
+  line2: String
+  city: String!
+  state: String!
+  zip_code: String!
+  country: String!
+}
+
+type ExperianCreditSummary {
+  total_accounts: Int!
+  open_accounts: Int!
+  closed_accounts: Int!
+  total_balance: Float!
+  total_monthly_payment: Float!
+}
+
+type ExperianAccountSummary {
+  real_estate: ExperianAccountTypeSummary!
+  revolving: ExperianAccountTypeSummary!
+  installment: ExperianAccountTypeSummary!
+  other: ExperianAccountTypeSummary!
+}
+
+type ExperianAccountTypeSummary {
+  count: Int!
+  balance: Float!
+  payment: Float!
+}
+
+type ExperianCreditScore {
+  score: Int!
+  model: String!
+  date: String!
+  factors: [ExperianCreditFactor!]!
+}
+
+type ExperianCreditFactor {
+  code: String!
+  description: String!
+  impact: String!
+}
+
+type ExperianIdentityVerification {
+  verification_id: String!
+  status: String!
+  score: Float!
+  details: ExperianIdentityDetails!
+}
+
+type ExperianIdentityDetails {
+  name_match: String!
+  address_match: String!
+  ssn_match: String!
+  dob_match: String!
+}
+
+input ExperianIndividualInput {
+  first_name: String!
+  last_name: String!
+  date_of_birth: String!
+  ssn: String!
+  address: ExperianAddressInput!
+  email: String
+  phone: String
+}
+
+input ExperianAddressInput {
+  line1: String!
+  line2: String
+  city: String!
+  state: String!
+  zip_code: String!
+  country: String!
+}
+
+# Equifax Types (similar structure to Experian)
+type EquifaxCreditReport {
+  personal_info: EquifaxPersonalInfo!
+  credit_summary: EquifaxCreditSummary!
+  score_model_used: String
+  vantage_score: Int
+  fico_score: Int
+}
+
+type EquifaxPersonalInfo {
+  name: String!
+  address: EquifaxAddress!
+  date_of_birth: String
+  ssn: String
+}
+
+type EquifaxAddress {
+  line1: String!
+  line2: String
+  city: String!
+  state: String!
+  zip_code: String!
+  country: String!
+}
+
+type EquifaxCreditSummary {
+  total_accounts: Int!
+  open_accounts: Int!
+  closed_accounts: Int!
+  total_balance: Float!
+  total_monthly_payment: Float!
+}
+
+type EquifaxCreditScore {
+  score: Int!
+  model: String!
+  date: String!
+  factors: [EquifaxCreditFactor!]!
+}
+
+type EquifaxCreditFactor {
+  code: String!
+  description: String!
+  impact: String!
+}
+
+type EquifaxIdentityVerification {
+  verification_id: String!
+  status: String!
+  score: Float!
+  details: EquifaxIdentityDetails!
+}
+
+type EquifaxIdentityDetails {
+  name_match: String!
+  address_match: String!
+  ssn_match: String!
+  dob_match: String!
+}
+
+input EquifaxIndividualInput {
+  first_name: String!
+  last_name: String!
+  date_of_birth: String!
+  ssn: String!
+  address: EquifaxAddressInput!
+  email: String
+  phone: String
+}
+
+input EquifaxAddressInput {
+  line1: String!
+  line2: String
+  city: String!
+  state: String!
+  zip_code: String!
+  country: String!
+}
+
+# Google Maps Types
+type GeocodeResult {
+  results: [GeocodeAddressComponent!]!
+  status: String!
+}
+
+type GeocodeAddressComponent {
+  address_components: [GeocodeAddressComponentDetail!]!
+  formatted_address: String!
+  geometry: GeocodeGeometry!
+  place_id: String!
+  types: [String!]!
+}
+
+type GeocodeAddressComponentDetail {
+  long_name: String!
+  short_name: String!
+  types: [String!]!
+}
+
+type GeocodeGeometry {
+  location: GeocodeLatLng!
+  location_type: String!
+  viewport: GeocodeViewport!
+  bounds: GeocodeViewport
+}
+
+type GeocodeLatLng {
+  lat: Float!
+  lng: Float!
+}
+
+type GeocodeViewport {
+  northeast: GeocodeLatLng!
+  southwest: GeocodeLatLng!
+}
+
+type ReverseGeocodeResult {
+  results: [ReverseGeocodeAddressComponent!]!
+  status: String!
+}
+
+type ReverseGeocodeAddressComponent {
+  address_components: [ReverseGeocodeAddressComponentDetail!]!
+  formatted_address: String!
+  geometry: ReverseGeocodeGeometry!
+  place_id: String!
+  types: [String!]!
+}
+
+type ReverseGeocodeAddressComponentDetail {
+  long_name: String!
+  short_name: String!
+  types: [String!]!
+}
+
+type ReverseGeocodeGeometry {
+  location: ReverseGeocodeLatLng!
+  location_type: String!
+  viewport: ReverseGeocodeViewport!
+}
+
+type ReverseGeocodeLatLng {
+  lat: Float!
+  lng: Float!
+}
+
+type ReverseGeocodeViewport {
+  northeast: ReverseGeocodeLatLng!
+  southwest: ReverseGeocodeLatLng!
+}
+
+type PlaceDetailsResult {
+  result: PlaceDetails!
+  status: String!
+}
+
+type PlaceDetails {
+  address_components: [PlaceDetailsAddressComponent!]!
+  formatted_address: String!
+  geometry: PlaceDetailsGeometry!
+  name: String!
+  place_id: String!
+  types: [String!]!
+  url: String
+  viewport: PlaceDetailsViewport!
+}
+
+type PlaceDetailsAddressComponent {
+  long_name: String!
+  short_name: String!
+  types: [String!]!
+}
+
+type PlaceDetailsGeometry {
+  location: PlaceDetailsLatLng!
+  viewport: PlaceDetailsViewport!
+}
+
+type PlaceDetailsLatLng {
+  lat: Float!
+  lng: Float!
+}
+
+type PlaceDetailsViewport {
+  northeast: PlaceDetailsLatLng!
+  southwest: PlaceDetailsLatLng!
+}
+
+input GeocodeInput {
+  address: String!
+}
+
+input ReverseGeocodeInput {
+  lat: Float!
+  lng: Float!
+}
+
+input ValidateAddressInput {
+  street_number: String
+  route: String
+  locality: String
+  administrative_area_level_1: String
+  postal_code: String
+  country: String
+}
+
+# Twilio Types
+type TwilioMessage {
+  sid: String!
+  date_created: String!
+  date_sent: String
+  account_sid: String!
+  messaging_service_sid: String
+  to: String!
+  from: String!
+  body: String!
+  status: String!
+  direction: String!
+  num_segments: Int!
+  num_media: Int!
+  price: String
+  price_unit: String
+  error_code: String
+  error_message: String
+  uri: String!
+}
+
+type TwilioCall {
+  sid: String!
+  date_created: String!
+  date_updated: String
+  account_sid: String!
+  to: String!
+  from: String!
+  status: String!
+  start_time: String
+  end_time: String
+  duration: String
+  price: String
+  price_unit: String
+  direction: String!
+  answered_by: String
+  forwarded_from: String
+  caller_name: String
+  uri: String!
+}
+
+type TwilioVerification {
+  sid: String!
+  service_sid: String!
+  account_sid: String!
+  to: String!
+  channel: String!
+  status: String!
+  valid: Boolean
+  date_created: String!
+  date_updated: String
+  lookup: String
+  send_code_attempts: String
+}
+
+type TwilioVerificationCheck {
+  sid: String!
+  service_sid: String!
+  account_sid: String!
+  to: String!
+  check: String!
+  status: String!
+  valid: Boolean
+  date_created: String!
+  date_updated: String
+  lookup: String
+}
+
+input TwilioSmsInput {
+  body: String!
+  to: String!
+  from: String
+}
+
+input TwilioWhatsAppInput {
+  body: String!
+  to: String!
+}
+
+input TwilioCallInput {
+  url: String!
+  to: String!
+  from: String
+  method: String
+}
+
+input TwilioVerifyInput {
+  to: String!
+  channel: String
+}
+
+input TwilioCheckVerificationInput {
+  to: String!
+  code: String!
+}
+
+# SendGrid Types
+type SendGridEmailResponse {
+  headers: String!
+  statusCode: Int!
+  message: String!
+}
+
+input SendGridEmailInput {
+  to: String!
+  from: String
+  subject: String!
+  text: String
+  html: String
+  attachments: [SendGridAttachment!]!
+}
+
+type SendGridAttachment {
+  content: String!
+  filename: String!
+  type: String!
+  disposition: String
+  content_id: String
+}
+
+# SES Types
+type SesEmailResponse {
+  MessageId: String!
+}
+
+input SesEmailInput {
+  to: [String!]!
+  cc: [String!]
+  bcc: [String!]
+  from: String
+  replyTo: [String!]
+  subject: String!
+  text: String
+  html: String
+}
+
+input SesRawEmailInput {
+  to: [String!]!
+  from: String
+  replyTo: [String!]
+  rawMessage: String!
+}
+
+# S3 Types
+type S3UploadResponse {
+  Location: String!
+  Bucket: String!
+  Key: String!
+  ETag: String!
+}
+
+type S3Object {
+  Key: String!
+  LastModified: String!
+  ETag: String!
+  Size: Int!
+  StorageClass: String!
+}
+
+type S3ListResponse {
+  Contents: [S3Object!]!
+  Name: String!
+  Prefix: String!
+  KeyCount: Int!
+  MaxKeys: Int!
+  IsTruncated: Boolean!
+}
+
+input S3UploadInput {
+  Bucket: String
+  Key: String!
+  Body: String!
+  ContentType: String
+  Metadata: String
+  ACL: String
+  ServerSideEncryption: String
+}
+
+input S3DownloadInput {
+  Bucket: String
+  Key: String!
+}
+
+input S3DeleteInput {
+  Bucket: String
+  Key: String!
+}
+
+input S3ListInput {
+  Bucket: String
+  Prefix: String
+  MaxKeys: Int
+}
+
+input S3HeadInput {
+  Bucket: String
+  Key: String!
+}
+
+input S3UrlInput {
+  Bucket: String
+  Key: String!
+  Expires: Int
+  ResponseContentType: String
+  ResponseContentDisposition: String
+}
+
+# Web3 Types
+type Web3Balance {
+  address: String!
+  network: String!
+  balanceWei: String!
+  balanceEth: Float!
+}
+
+type Web3TransactionCount {
+  address: String!
+  network: String!
+  nonce: Int!
+}
+
+type Web3BlockNumber {
+  network: String!
+  blockNumber: Int!
+}
+
+type Web3TransactionReceipt {
+  transactionHash: String!
+  transactionIndex: Int!
+  blockHash: String!
+  blockNumber: Int!
+  cumulativeGasUsed: Int!
+  gasUsed: Int!
+  contractAddress: String
+  logs: [Web3Log!]!
+  status: Boolean!
+  from: String!
+  to: String
+}
+
+type Web3Log {
+  address: String!
+  blockHash: String!
+  blockNumber: Int!
+  transactionHash: String!
+  transactionIndex: Int!
+  logIndex: Int!
+  removed: Boolean!
+  data: String!
+  topics: [String!]!
+}
+
+type Web3TokenBalance {
+  address: String!
+  network: String!
+  tokenContractAddress: String!
+  symbol: String!
+  decimals: Int!
+  balance: String!
+  formattedBalance: Float!
+}
+
+input Web3BalanceInput {
+  address: String!
+  network: String
+}
+
+input Web3TransactionCountInput {
+  address: String!
+  network: String
+}
+
+input Web3BlockNumberInput {
+  network: String
+}
+
+input Web3TransactionReceiptInput {
+  txHash: String!
+  network: String
+}
+
+input Web3ContractCallInput {
+  contractAddress: String!
+  abi: String!
+  methodName: String!
+  params: [String!]
+  network: String
+}
+
+input Web3TokenBalanceInput {
+  tokenContractAddress: String!
+  walletAddress: String!
+  network: String
+}
+
+# OAuth Types
+type GoogleUserInfo {
+  id: String!
+  email: String!
+  email_verified: Boolean!
+  name: String!
+  given_name: String!
+  family_name: String!
+  picture: String!
+  locale: String!
+  provider: String!
+}
+
+type FacebookUserInfo {
+  id: String!
+  email: String
+  name: String!
+  first_name: String!
+  last_name: String!
+  picture: FacebookPicture!
+  provider: String!
+}
+
+type FacebookPicture {
+  data: FacebookPictureData!
+}
+
+type FacebookPictureData {
+  height: Int!
+  is_silhouette: Boolean!
+  url: String!
+  width: Int!
+}
+
+type AppleUserInfo {
+  id: String!
+  email: String!
+  email_verified: Boolean!
+  name: String!
+  provider: String!
+}
+
+input GoogleTokenInput {
+  idToken: String!
+}
+
+input GoogleAccessTokenInput {
+  accessToken: String!
+}
+
+input FacebookAccessTokenInput {
+  accessToken: String!
+}
+
+input AppleIdentityTokenInput {
+  identityToken: String!
+}
+
+# Root Query and Mutation Types
+type Query {
+  # Stripe Queries
+  getPaymentIntent(id: ID!): PaymentIntent!
+  
+  # Plaid Queries
+  getPlaidLinkToken(userData: PlaidLinkTokenInput!): LinkTokenResponse!
+  exchangePlaidPublicToken(publicToken: String!): String!
+  getPlaidAccounts(accessToken: String!): [PlaidAccount!]!
+  getPlaidTransactions(accessToken: String!, startDate: String, endDate: String, count: Int, offset: Int): PlaidTransactionsResponse!
+  getPlaidIdentity(accessToken: String!): PlaidIdentity!
+  
+  # Jumio Queries
+  getJumioVerificationStatus(merchantScanReference: String!): JumioVerification!
+  getJumioVerificationResult(merchantScanReference: String!): JumioResult!
+  
+  # Onfido Queries
+  getOnfidoApplicant(applicantId: String!): OnfidoApplicant!
+  getOnfidoDocument(documentId: String!): OnfidoDocument!
+  getOnfidoCheckStatus(checkId: String!): OnfidoCheck!
+  getOnfidoCheckResult(checkId: String!): OnfidoCheck!
+  
+  # Experian Queries
+  getExperianCreditReport(individualData: ExperianIndividualInput!): ExperianCreditReport!
+  getExperianCreditScore(individualData: ExperianIndividualInput!): ExperianCreditScore!
+  verifyExperianIdentity(individualData: ExperianIndividualInput!): ExperianIdentityVerification!
+  
+  # Equifax Queries
+  getEquifaxCreditReport(individualData: EquifaxIndividualInput!): EquifaxCreditReport!
+  getEquifaxCreditScore(individualData: EquifaxIndividualInput!): EquifaxCreditScore!
+  verifyEquifaxIdentity(individualData: EquifaxIndividualInput!): EquifaxIdentityVerification!
+  
+  # Google Maps Queries
+  geocodeAddress(input: GeocodeInput!): GeocodeResult!
+  reverseGeocode(input: ReverseGeocodeInput!): ReverseGeocodeResult!
+  validateAddress(input: ValidateAddressInput!): Boolean!
+  getPlaceDetails(placeId: String!): PlaceDetailsResult!
+  
+  # Web3 Queries
+  getEthBalance(input: Web3BalanceInput!): Web3Balance!
+  getTokenBalance(input: Web3TokenBalanceInput!): Web3TokenBalance!
+  getBlockNumber(input: Web3BlockNumberInput!): Web3BlockNumber!
+  getTransactionReceipt(input: Web3TransactionReceiptInput!): Web3TransactionReceipt!
+  callContractMethod(input: Web3ContractCallInput!): String!
+  
+  # OAuth Queries
+  verifyGoogleToken(input: GoogleTokenInput!): GoogleUserInfo!
+  getGoogleUserInfo(input: GoogleAccessTokenInput!): GoogleUserInfo!
+  verifyFacebookToken(input: FacebookAccessTokenInput!): FacebookUserInfo!
+  verifyAppleToken(input: AppleIdentityTokenInput!): AppleUserInfo!
+}
+
+type Mutation {
+  # Stripe Mutations
+  createPaymentIntent(paymentData: PaymentIntentInput!): PaymentIntent!
+  confirmPaymentIntent(paymentIntentId: ID!, confirmData: PaymentIntentConfirmInput!): PaymentIntent!
+  createRefund(refundData: RefundInput!): Refund!
+  
+  # Plaid Mutations
+  createPlaidLinkToken(userData: PlaidLinkTokenInput!): LinkTokenResponse!
+  exchangePlaidPublicToken(publicToken: String!): String!
+  
+  # Jumio Mutations
+  createJumioVerification(verificationData: JumioVerificationInput!): JumioVerification!
+  
+  # Onfido Mutations
+  createOnfidoApplicant(applicantData: OnfidoApplicantInput!): OnfidoApplicant!
+  uploadOnfidoDocument(applicantId: String!, file: String!, fileType: String!): OnfidoDocument!
+  createOnfidoCheck(checkData: OnfidoCheckInput!): OnfidoCheck!
+  
+  # Twilio Mutations
+  sendTwilioSms(messageData: TwilioSmsInput!): TwilioMessage!
+  sendTwilioWhatsApp(messageData: TwilioWhatsAppInput!): TwilioMessage!
+  makeTwilioCall(callData: TwilioCallInput!): TwilioCall!
+  verifyTwilioPhone(verifyData: TwilioVerifyInput!): TwilioVerification!
+  checkTwilioVerification(checkData: TwilioCheckVerificationInput!): TwilioVerificationCheck!
+  
+  # SendGrid Mutations
+  sendSendGridEmail(emailData: SendGridEmailInput!): SendGridEmailResponse!
+  sendSendGridMultipleEmails(emailDataArray: [SendGridEmailInput!]!): [SendGridEmailResponse!]!
+  
+  # SES Mutations
+  sendSesEmail(emailData: SesEmailInput!): SesEmailResponse!
+  sendSesRawEmail(emailData: SesRawEmailInput!): SesEmailResponse!
+  
+  # S3 Mutations
+  uploadS3File(uploadParams: S3UploadInput!): S3UploadResponse!
+  deleteS3File(deleteParams: S3DeleteInput!): String!
+  getS3SignedUrl(urlParams: S3UrlInput!): String!
+}
