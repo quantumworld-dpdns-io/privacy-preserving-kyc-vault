@@ -135,23 +135,21 @@ mod tests {
 
     #[test]
     fn test_my_dh_matches_dalek() {
-        use rand::{CryptoRng, RngCore};
         use x25519_dalek::EphemeralSecret;
 
-        struct FixedRng([u8; 32], bool);
-        impl RngCore for FixedRng {
-            fn next_u32(&mut self) -> u32 { unimplemented!() }
-            fn next_u64(&mut self) -> u64 { unimplemented!() }
+        struct FixedRng([u8; 32]);
+        impl rand::RngCore for FixedRng {
+            fn next_u32(&mut self) -> u32 { 0 }
+            fn next_u64(&mut self) -> u64 { 0 }
             fn fill_bytes(&mut self, dest: &mut [u8]) {
                 dest.copy_from_slice(&self.0);
-                self.1 = true;
             }
             fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
                 self.fill_bytes(dest);
                 Ok(())
             }
         }
-        impl CryptoRng for FixedRng {}
+        impl rand::CryptoRng for FixedRng {}
 
         let alice_bytes = [0x41u8; 32];
         let bob_bytes = [0x42u8; 32];
