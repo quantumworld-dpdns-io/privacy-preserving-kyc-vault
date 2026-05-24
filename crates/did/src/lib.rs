@@ -1,10 +1,13 @@
-pub fn hello() -> &'static str { "hello from did" }
+pub mod document;
+pub mod error;
+pub mod methods;
+pub mod resolver;
+pub mod service;
+pub mod verification;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn it_works() {
-        assert_eq!(hello(), "hello from did");
-    }
-}
+pub use document::DIDDocument;
+pub use error::DIDError;
+pub use methods::*;
+pub use resolver::DIDResolver;
+pub use service::Service;
+pub use verification::VerificationMethod;
