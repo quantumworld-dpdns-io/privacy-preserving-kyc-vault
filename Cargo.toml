@@ -1,6 +1,14 @@
 [workspace]
 resolver = "3"
-members = ["crates/crypto-pqc", "crates/zkp"]
+members = [
+    "crates/crypto-pqc",
+    "crates/zkp",
+    "crates/governance",
+    "crates/reputation",
+    "crates/oracle",
+    "crates/monitoring",
+    "crates/integration-tests",
+]
 
 [workspace.package]
 version = "0.1.0"
