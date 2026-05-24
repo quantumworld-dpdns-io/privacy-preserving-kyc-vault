@@ -1,0 +1,23 @@
+{
+  "name": "@kyc-vault/react-native-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "React Native SDK for KYC Vault",
+  "main": "src/KYCVaultProvider.tsx",
+  "types": "src/KYCVaultProvider.tsx",
+  "files": [
+    "src/**/*"
+  ],
+  "scripts": {
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "react-native": ">=0.64.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}
