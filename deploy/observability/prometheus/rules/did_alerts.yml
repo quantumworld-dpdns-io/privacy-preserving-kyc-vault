@@ -1,0 +1,94 @@
+groups:
+  - name: did_operations
+    interval: 30s
+    rules:
+      - alert: DIDResolutionHighLatency
+        expr: histogram_quantile(0.99, rate(did_resolution_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: identity
+        annotations:
+          summary: "DID resolution latency is above 2s (99th percentile)"
+          description: "DID resolution p99 latency is {{ $value }}s for the last 5 minutes."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/did-high-latency"
+
+      - alert: DIDResolutionFailureRate
+        expr: rate(did_resolution_errors_total[5m]) / rate(did_resolution_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: identity
+        annotations:
+          summary: "DID resolution error rate is above 5%"
+          description: "DID resolution error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/did-resolution-failure"
+
+      - alert: DIDCreateRateHigh
+        expr: rate(did_create_requests_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: info
+          team: identity
+        annotations:
+          summary: "High rate of DID creation requests"
+          description: "DID creation rate is {{ $value }} ops/s, which may indicate automated activity."
+
+      - alert: DIDUpdateRateAnomaly
+        expr: abs(rate(did_update_requests_total[5m]) - avg(rate(did_update_requests_total[5m]) offset 1w)) > 3 * stddev(rate(did_update_requests_total[5m]) offset 1w)
+        for: 10m
+        labels:
+          severity: warning
+          team: identity
+        annotations:
+          summary: "Anomalous DID update rate detected"
+          description: "DID update rate shows statistically significant deviation from weekly baseline."
+
+      - alert: DIDDeactivateSpike
+        expr: rate(did_deactivate_requests_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: identity
+        annotations:
+          summary: "Spike in DID deactivation requests"
+          description: "DID deactivation rate is {{ $value }} ops/s, which may indicate a security incident."
+
+      - alert: DIDMethodSpecificErrors
+        expr: rate(did_method_error_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          team: identity
+        annotations:
+          summary: "DID method-specific errors detected"
+          description: "Errors in DID method {{ $labels.method }} at rate {{ $value }}."
+
+      - alert: DIDDocumentCacheMissRate
+        expr: rate(did_cache_misses_total[5m]) / rate(did_cache_lookups_total[5m]) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+          team: identity
+        annotations:
+          summary: "High DID document cache miss rate"
+          description: "Cache miss rate is {{ $value | humanizePercentage }}, consider increasing TTL or pre-warming."
+
+      - alert: DIDRegistrySyncLag
+        expr: did_registry_sync_lag_seconds > 30
+        for: 2m
+        labels:
+          severity: critical
+          team: identity
+        annotations:
+          summary: "DID registry sync lag exceeds 30s"
+          description: "Registry sync lag is {{ $value }}s, cross-region replication may be delayed."
+
+      - alert: DIDKeyRotationOverdue
+        expr: time() - did_last_key_rotation_timestamp_seconds > 7776000
+        labels:
+          severity: warning
+          team: identity
+        annotations:
+          summary: "DID signing key rotation is overdue"
+          description: "Key was last rotated {{ $value | humanizeDuration }} ago. Threshold is 90 days."
