@@ -86,13 +86,18 @@ pub fn generate_keypair() -> ([u8; 32], PublicKey) {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     let scalar = Scalar::from_bytes_mod_order(bytes);
-    let stored = scalar.to_bytes();
+    let reduced = scalar.to_bytes();
+    let mut clamped = reduced;
+    clamped[0] &= 248;
+    clamped[31] &= 127;
+    clamped[31] |= 64;
+    let clamped_scalar = Scalar::from_bytes_mod_order(clamped);
     let mut base_bytes = [0u8; 32];
     base_bytes[0] = 9;
     let basepoint = MontgomeryPoint(base_bytes);
-    let public_point = scalar * basepoint;
+    let public_point = clamped_scalar * basepoint;
     let public = PublicKey::from(public_point.to_bytes());
-    (stored, public)
+    (reduced, public)
 }
 
 #[cfg(test)]
