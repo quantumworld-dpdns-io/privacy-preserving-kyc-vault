@@ -1,0 +1,138 @@
+name: Release Canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      percentage:
+        description: "Traffic percentage for canary"
+        required: true
+        default: "10"
+        type: choice
+        options:
+          - "5"
+          - "10"
+          - "25"
+          - "50"
+      duration:
+        description: "Canary duration (minutes)"
+        required: true
+        default: "30"
+        type: string
+      image_tag:
+        description: "Docker image tag for canary"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  KUBE_NAMESPACE: production
+  CANARY_DURATION_MIN: ${{ github.event.inputs.duration }}
+
+jobs:
+  deploy-canary:
+    name: Deploy Canary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" > $HOME/.kube/config
+
+      - name: Deploy canary with traffic split
+        run: |
+          kubectl apply -f k8s/overlays/production/canary/ -n ${{ env.KUBE_NAMESPACE }}
+
+          cat <<EOF | kubectl apply -f -
+          apiVersion: networking.istio.io/v1beta1
+          kind: VirtualService
+          metadata:
+            name: app-canary
+            namespace: ${{ env.KUBE_NAMESPACE }}
+          spec:
+            hosts:
+            - app
+            http:
+            - match:
+              - headers:
+                  x-canary:
+                    exact: "true"
+              route:
+              - destination:
+                  host: app-canary
+                  port:
+                    number: 80
+                weight: 100
+            - route:
+              - destination:
+                  host: app-stable
+                  port:
+                    number: 80
+                weight: ${{ 100 - github.event.inputs.percentage | int }}
+              - destination:
+                  host: app-canary
+                  port:
+                    number: 80
+                weight: ${{ github.event.inputs.percentage }}
+          EOF
+
+          echo "Canary deployed with ${{ github.event.inputs.percentage }}% traffic"
+
+  monitor:
+    name: Monitor Canary
+    runs-on: ubuntu-latest
+    needs: deploy-canary
+    steps:
+      - name: Monitor for canary duration
+        run: |
+          END=$((SECONDS + ${{ env.CANARY_DURATION_MIN }} * 60))
+          while [ $SECONDS -lt $END ]; do
+            echo "Canary running... $(date)"
+            sleep 60
+          done
+
+      - name: Check canary error rate
+        run: |
+          kubectl logs -n ${{ env.KUBE_NAMESPACE }} -l app=app-canary --tail=100 --since=5m > canary-logs.txt
+          ERROR_COUNT=$(grep -ci "error\|exception\|5[0-9][0-9]" canary-logs.txt || echo 0)
+          echo "Canary error count: $ERROR_COUNT"
+          if [ "$ERROR_COUNT" -gt 10 ]; then
+            echo "::error::Canary error rate too high ($ERROR_COUNT errors)"
+            exit 1
+          fi
+
+  promote-or-rollback:
+    name: Promote or Rollback Canary
+    runs-on: ubuntu-latest
+    needs: monitor
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" > $HOME/.kube/config
+
+      - name: Promote canary to stable
+        if: needs.monitor.result == 'success'
+        run: |
+          kubectl set image deployment/app-stable \
+            -n ${{ env.KUBE_NAMESPACE }} \
+            app=app:${{ github.event.inputs.image_tag }}
+          kubectl rollout status deployment/app-stable \
+            -n ${{ env.KUBE_NAMESPACE }} --timeout=300s
+          kubectl delete virtualservice app-canary -n ${{ env.KUBE_NAMESPACE }} || true
+          kubectl delete deployment app-canary -n ${{ env.KUBE_NAMESPACE }} || true
+          echo "Canary promoted to stable"
+
+      - name: Rollback canary
+        if: needs.monitor.result != 'success'
+        run: |
+          kubectl delete virtualservice app-canary -n ${{ env.KUBE_NAMESPACE }} || true
+          kubectl delete deployment app-canary -n ${{ env.KUBE_NAMESPACE }} || true
+          echo "Canary rolled back"
