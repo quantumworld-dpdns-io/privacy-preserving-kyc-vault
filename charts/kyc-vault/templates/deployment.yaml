@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kyc-vault.fullname" . }}-{{ .Values.component }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "kyc-vault.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ .Values.component }}
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.rollingUpdate.maxUnavailable | default "25%" }}
+      maxSurge: {{ .Values.rollingUpdate.maxSurge | default "25%" }}
+  selector:
+    matchLabels:
+      {{- include "kyc-vault.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: {{ .Values.component }}
+  template:
+    metadata:
+      labels:
+        {{- include "kyc-vault.labels" . | nindent 8 }}
+        app.kubernetes.io/component: {{ .Values.component }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        checksum/config: {{ include (print .Values.component "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "kyc-vault.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ .Values.component }}
+          image: "{{ .Values.image.repository }}/{{ .Values.component }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              protocol: TCP
+              name: http
+            - containerPort: {{ .Values.metricsPort | default 9090 }}
+              protocol: TCP
+              name: metrics
+          env:
+            {{- include "kyc-vault.commonEnv" . | nindent 12 }}
+            {{- include "kyc-vault.componentEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ include "kyc-vault.fullname" . }}-secrets
+                optional: false
+            - configMapRef:
+                name: {{ include "kyc-vault.fullname" . }}-config
+                optional: false
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /etc/kyc-vault
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /data
+              subPath: {{ .Values.component }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10 && exit 0"]
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "kyc-vault.fullname" . }}-config
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "kyc-vault.fullname" . }}-pvc
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: {{ .Values.component }}
