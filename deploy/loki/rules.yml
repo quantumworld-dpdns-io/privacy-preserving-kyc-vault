@@ -1,0 +1,267 @@
+# Loki Log Alerting Rules - KYC Vault
+# ============================================================
+groups:
+  - name: kyc-vault-security-events
+    interval: 30s
+    rules:
+      # ============================================================
+      # Security Events
+      # ============================================================
+      - alert: KYCSecurityUnauthorizedAccess
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*api.*"} 
+            |~ "(?i)(unauthorized|forbidden|access denied|401|403)" 
+            [5m]
+          ) > 50
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "{{ $value }} unauthorized access events in 5 minutes"
+
+      - alert: KYCSecuritySQLInjectionAttempt
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*api.*"} 
+            |~ "(?i)(union.*select|select.*from|drop table|DELETE FROM|insert into|--|';|OR 1=1)" 
+            [5m]
+          ) > 10
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "SQL injection attempts detected"
+          description: "{{ $value }} SQL injection patterns in 5 minutes"
+
+      - alert: KYCSecurityXSSAttempt
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*api.*"} 
+            |~ "(?i)(<script|<iframe|onerror|onload|javascript:|alert\()" 
+            [5m]
+          ) > 10
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "XSS attack attempts detected"
+          description: "{{ $value }} XSS patterns in 5 minutes"
+
+      - alert: KYCSecurityPathTraversal
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*api.*"} 
+            |~ "(\.\./|\.\.\\|%2e%2e%2f|%2e%2e/)" 
+            [5m]
+          ) > 10
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Path traversal attempts detected"
+          description: "{{ $value }} path traversal patterns in 5 minutes"
+
+      - alert: KYCSecurityRateLimitTriggered
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*api.*"} 
+            |~ "rate.?limit|too many requests|429" 
+            [5m]
+          ) > 100
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High rate limit triggers"
+          description: "{{ $value }} rate limit events in 5 minutes"
+
+      # ============================================================
+      # Error Pattern Alerts
+      # ============================================================
+      - alert: KYCErrorServicePanic
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(panic|fatal error|runtime error|stack trace|segmentation fault)" 
+            [5m]
+          ) > 0
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service panic detected in {{ $labels.job }}"
+          description: "{{ $value }} panic events in namespace kyc-vault"
+
+      - alert: KYCErrorTimeoutSpike
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(timeout|deadline exceeded|context deadline|timed out)" 
+            [5m]
+          ) > 20
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Timeout error spike detected"
+          description: "{{ $value }} timeout events in 5 minutes"
+
+      - alert: KYCErrorConnectionRefused
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(connection refused|connection reset|broken pipe|connection closed)" 
+            [5m]
+          ) > 10
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Connection errors detected"
+          description: "{{ $value }} connection errors in 5 minutes"
+
+      - alert: KYCErrorDatabaseQuery
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(database error|query failed|pq: |psql: |sql error)" 
+            [5m]
+          ) > 5
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Database query errors detected"
+          description: "{{ $value }} database errors in 5 minutes"
+
+      - alert: KYCErrorRedisFailure
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(redis error|cache miss|connection to redis|redis timeout)" 
+            [5m]
+          ) > 10
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis errors detected"
+          description: "{{ $value }} Redis errors in 5 minutes"
+
+      - alert: KYCErrorKafkaFailure
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(kafka error|producer error|consumer error|topic not found|offset out of range)" 
+            [5m]
+          ) > 5
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Kafka errors detected"
+          description: "{{ $value }} Kafka errors in 5 minutes"
+
+      # ============================================================
+      # Business Logic Alerts
+      # ============================================================
+      - alert: KYCBusinessRejectionSpike
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*orchestrator.*"} 
+            |~ "(?i)(verification rejected|kyc rejected|fraud detected|high risk)" 
+            [10m]
+          ) > 50
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "KYC rejection spike detected"
+          description: "{{ $value }} rejections in 10 minutes"
+
+      - alert: KYCBusinessDuplicateDetection
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*credential.*"} 
+            |~ "(?i)(duplicate credential|already exists|conflict)" 
+            [10m]
+          ) > 20
+        labels:
+          severity: warning
+          team: kyc
+        annotations:
+          summary: "Duplicate credential detection spike"
+
+      # ============================================================
+      # Compliance Alerts
+      # ============================================================
+      - alert: KYCComplianceFlagSpike
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*compliance.*"} 
+            |~ "(?i)(sanctions hit|pep match|aml flag|compliance alert)" 
+            [10m]
+          ) > 5
+        labels:
+          severity: critical
+          team: compliance
+        annotations:
+          summary: "Compliance flag spike detected"
+          description: "{{ $value }} compliance flags in 10 minutes"
+
+      - alert: KYCComplianceTimeout
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault", job=~".*compliance.*"} 
+            |~ "(?i)(compliance check timeout|screening timeout|compliance error)" 
+            [5m]
+          ) > 3
+        labels:
+          severity: warning
+          team: compliance
+        annotations:
+          summary: "Compliance check timeouts detected"
+
+      # ============================================================
+      # Infrastructure Alerts
+      # ============================================================
+      - alert: KYCInfraOOM
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(out of memory|OOMKilled|OOM|allocation failure)" 
+            [5m]
+          ) > 0
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Out of memory event in {{ $labels.pod }}"
+
+      - alert: KYCInfraDiskPressure
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(disk full|no space left|i/o error|disk pressure)" 
+            [5m]
+          ) > 0
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Disk pressure on {{ $labels.instance }}"
+
+      - alert: KYCInfraRestartLoop
+        expr: |
+          count_over_time(
+            {namespace="kyc-vault"} 
+            |~ "(?i)(restarting|starting up|shutting down|terminated|exited)" 
+            [5m]
+          ) > 20
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High pod restart/termination rate"
