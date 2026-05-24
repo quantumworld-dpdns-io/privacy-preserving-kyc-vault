@@ -1,0 +1,45 @@
+rules:
+  - id: no-hardcoded-secrets
+    patterns:
+      - pattern-either:
+          - pattern-regex: (?:api[_-]?key|secret|password|token|credential)\s*[:=]\s*["\'][^"\'\s]{8,}["\']
+      - pattern-not: `${{ secrets.* }}`
+    message: Hardcoded secret detected
+    languages: [ts, js, py, rs, yaml]
+    severity: ERROR
+
+  - id: no-unsafe-crypto
+    patterns:
+      - pattern-either:
+          - pattern: MD5
+          - pattern: SHA1
+          - pattern: DES
+          - pattern: RC4
+    message: Weak cryptography detected
+    languages: [ts, js, py, rs]
+    severity: ERROR
+
+  - id: no-command-injection
+    patterns:
+      - pattern: exec($INPUT)
+      - pattern: shell($INPUT)
+    message: Potential command injection
+    languages: [ts, js, py]
+    severity: WARNING
+
+  - id: no-insecure-random
+    patterns:
+      - pattern: Math.random()
+      - pattern: rand::thread_rng()
+    message: Use cryptographically secure RNG
+    languages: [ts, js, rs]
+    severity: WARNING
+
+  - id: no-sensitive-logging
+    patterns:
+      - pattern-either:
+          - pattern: console.log($SECRET)
+          - pattern: tracing::info!($SECRET)
+    message: Avoid logging sensitive data
+    languages: [ts, js, rs]
+    severity: WARNING
