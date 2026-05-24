@@ -1,0 +1,104 @@
+groups:
+  - name: ai_inference
+    interval: 30s
+    rules:
+      - alert: AIInferenceErrorRateHigh
+        expr: rate(ai_inference_errors_total[5m]) / rate(ai_inference_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: ai
+        annotations:
+          summary: "AI inference error rate above 5%"
+          description: "Inference error rate for model {{ $labels.model }} is {{ $value | humanizePercentage }}."
+          runbook_url: "https://docs.privacy-vault.com/runbooks/ai-inference-errors"
+
+      - alert: AIInferenceLatencyHigh
+        expr: histogram_quantile(0.95, rate(ai_inference_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI inference p95 latency above 10s"
+          description: "Inference p95 latency for model {{ $labels.model }} is {{ $value }}s."
+
+      - alert: AIModelConfidenceDrop
+        expr: ai_model_confidence_score < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI model confidence below 0.7"
+          description: "Model {{ $labels.model }} confidence is {{ $value }}. Model may need recalibration."
+
+      - alert: AIDriftDetected
+        expr: ai_data_drift_score > 0.1
+        for: 15m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI data drift detected"
+          description: "Data drift score for model {{ $labels.model }} is {{ $value }}. Model may be stale."
+
+      - alert: AIGPUUtilizationLow
+        expr: ai_gpu_utilization < 0.3
+        for: 30m
+        labels:
+          severity: info
+          team: ai
+        annotations:
+          summary: "AI GPU utilization below 30%"
+          description: "GPU utilization is {{ $value | humanizePercentage }}. Consider scaling down."
+
+      - alert: AIGPUUtilizationHigh
+        expr: ai_gpu_utilization > 0.95
+        for: 15m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI GPU utilization above 95%"
+          description: "GPU utilization is {{ $value | humanizePercentage }}. May cause throttling."
+
+      - alert: AIGPUOOM
+        expr: ai_gpu_out_of_memory_errors_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: ai
+        annotations:
+          summary: "AI GPU out of memory error"
+          description: "GPU OOM errors detected for pod {{ $labels.pod }}."
+
+      - alert: AIBatchProcessingBacklog
+        expr: ai_batch_queue_size > 1000
+        for: 10m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI batch processing backlog exceeds 1000"
+          description: "Batch queue size is {{ $value }} items."
+
+      - alert: AIModelLoadingFailure
+        expr: rate(ai_model_loading_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: ai
+        annotations:
+          summary: "AI model loading failures detected"
+          description: "Model {{ $labels.model }} failing to load at rate {{ $value }}/s."
+
+      - alert: AIFairnessMetricDegraded
+        expr: ai_fairness_score < 0.8
+        for: 30m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI fairness metric degraded"
+          description: "Fairness score for model {{ $labels.model }} is {{ $value }}. Review for bias."
