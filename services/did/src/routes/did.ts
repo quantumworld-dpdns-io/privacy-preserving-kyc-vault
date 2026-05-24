@@ -46,10 +46,16 @@ router.get('/resolve/:did', async (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { did, document } = req.body as { did: string; document: DIDDocument };
-  if (!did || !document) {
-    return res.status(400).json({ error: 'InvalidRequest', message: 'did and document are required' });
+  const validation = validateSchema(req.body, DID_REGISTRATION_SCHEMA);
+  if (!validation.valid) {
+    return res.status(400).json({
+      error: 'ValidationError',
+      message: 'Schema validation failed',
+      details: validation.errors,
+    });
   }
+
+  const { did, document } = req.body as { did: string; document: DIDDocument };
 
   const parts = did.split(':');
   const method = parts[1];
