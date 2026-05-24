@@ -72,7 +72,7 @@ impl HPKE {
         clamped[0] &= 248;
         clamped[31] &= 127;
         clamped[31] |= 64;
-        let scalar = Scalar::from_bits(clamped);
+        let scalar = Scalar::from_bytes_mod_order(clamped);
         let pub_bytes: [u8; 32] =
             <[u8; 32]>::try_from(public_key_bytes).map_err(|_| "Invalid public key length")?;
         let point = MontgomeryPoint(pub_bytes);
@@ -84,7 +84,7 @@ impl HPKE {
 pub fn generate_keypair() -> ([u8; 32], PublicKey) {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
-    let scalar = Scalar::from_bits(bytes);
+    let scalar = Scalar::from_bytes_mod_order(bytes);
     let mut base_bytes = [0u8; 32];
     base_bytes[0] = 9;
     let basepoint = MontgomeryPoint(base_bytes);
