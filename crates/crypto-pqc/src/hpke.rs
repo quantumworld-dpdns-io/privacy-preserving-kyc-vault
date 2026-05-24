@@ -99,10 +99,12 @@ pub fn generate_keypair() -> ([u8; 32], PublicKey) {
 mod tests {
     use super::*;
 
-    fn hex_to_bytes(hex: &str) -> [u8; 32] {
+    fn hex_to_bytes(s: &str) -> [u8; 32] {
+        let s = s.trim();
         let mut bytes = [0u8; 32];
         for i in 0..32 {
-            bytes[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap();
+            let start = i * 2;
+            bytes[i] = u8::from_str_radix(&s[start..start + 2], 16).unwrap();
         }
         bytes
     }
