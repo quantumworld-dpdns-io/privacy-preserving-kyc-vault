@@ -230,7 +230,23 @@ impl FlightSqlService for FlightSqlServiceImpl {
         &self,
         _request: Request<arrow_flight::Criteria>,
     ) -> FlightResult<Response<Pin<Box<dyn futures::Stream<Item = FlightResult<FlightInfo>> + Send>>>> {
-        unimplemented!("List flights not implemented")
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+
+        let tables = vec!["verification_events", "credential_audit"];
+        for table in tables {
+            let info = FlightInfo {
+                flight_descriptor: Some(FlightDescriptor::new_path(vec![table.to_string()])),
+                endpoint: vec![FlightEndpoint {
+                    ticket: Some(Ticket::new(table)),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            tx.send(Ok(info)).await.map_err(|e| Status::internal(e.to_string()))?;
+        }
+
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as _))
     }
 
     async fn get_flight_info_for_command(
