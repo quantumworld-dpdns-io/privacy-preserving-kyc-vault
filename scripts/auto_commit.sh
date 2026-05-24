@@ -26,15 +26,21 @@ while true; do
         echo "Pull/Rebase failed. Manual intervention might be needed if conflicts occur."
         # If rebase fails, we abort it to keep the repo clean
         git rebase --abort
+        count=$((count + 1))
+        echo "count: $count"
       fi
     else
       echo "Commit failed (likely nothing to commit)."
+      count=$((count + 1))
+      echo "count: $count"
     fi
   else
     echo "No changes detected. Skipping commit cycle."
     # Even if no changes, we might want to sync if local is ahead
     if [[ $(git rev-parse HEAD) != $(git rev-parse origin/dev) ]]; then
        git push origin dev
+       count=$((count + 1))
+       echo "count: $count"
     fi
   fi
   
