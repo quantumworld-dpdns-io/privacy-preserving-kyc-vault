@@ -100,7 +100,7 @@ mod tests {
         let aad = b"test-aad";
 
         let ct = HPKE::encrypt(public.as_bytes(), plaintext, aad).unwrap();
-        let decrypted = HPKE::decrypt(secret.to_bytes(), &ct, aad).unwrap();
+        let decrypted = HPKE::decrypt(&secret, &ct, aad).unwrap();
 
         assert_eq!(decrypted, plaintext);
     }
@@ -112,7 +112,7 @@ mod tests {
         let plaintext = b"secret data";
 
         let ct = HPKE::encrypt(public2.as_bytes(), plaintext, b"").unwrap();
-        let result = HPKE::decrypt(secret.to_bytes(), &ct, b"");
+        let result = HPKE::decrypt(&secret, &ct, b"");
         assert!(result.is_err());
     }
 }
